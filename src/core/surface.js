@@ -29,6 +29,7 @@ export class Surface {
         this._destroyed = false;
         this._generation = 0;
         this._state = {captures: new Map()};
+        this._paintedViews = new Set();
         try {
             this.group = new BackdropGroup({name: 'gse-surface', width: 0, height: 0, reactive: false});
             this.blur = new St.Widget({name: 'gse-blur', reactive: false,
@@ -62,18 +63,24 @@ export class Surface {
             // clip. Allocate/clip changes must also clear the last painted frame.
             for (let source = box; source; source = source.get_parent()) {
                 for (const property of ['allocation', 'has-clip', 'clip-rect', 'clip-to-allocation', 'mapped', 'opacity'])
-                    this.signals.connect(source, `notify::${property}`, () => this._syncVisibility());
+                    this.signals.connect(source, `notify::${property}`, () => this._queueLayoutSync());
                 if (source === anchor)
                     break;
             }
             this.signals.connect(Main.layoutManager, 'monitors-changed', () => {
+                this._paintedViews.clear();
                 this._clearCaptures();
                 this._geometry();
                 this._repaint();
             });
             this.frames.connect(global.stage, 'before-update', (_stage, view) => {
+                this._inFrame = true;
+                // A final hide still needs the previous sampled area cleared
+                // during this frame. Keep the guard until after-update.
+                const previouslyPainted = view ? this._paintedViews.has(view) : this._paintedViews.size > 0;
+                if (previouslyPainted)
+                    this.guard.begin(this.blur, view, this.box, true);
                 if (!this._syncVisibility()) {
-                    this.guard.end();
                     return;
                 }
                 const parent = this.anchor.get_parent();
@@ -84,15 +91,34 @@ export class Surface {
                 if (this.anchor.get_previous_sibling() !== this.group)
                     parent.set_child_below_sibling(this.group, this.anchor);
                 this._geometry();
-                if (this.backend && this._radius > 0 && this._alpha < 1)
+                if (!previouslyPainted && this.backend && this._radius > 0 && this._alpha < 1)
                     this.guard.begin(this.blur, view, this.box);
             });
             this.frames.connect(global.stage, 'before-paint', (_stage, view) => {
+                if (!this._syncVisibility()) {
+                    if (view)
+                        this._paintedViews.delete(view);
+                    else
+                        this._paintedViews.clear();
+                    return;
+                }
                 this._geometry();
                 if (this.backend && this._visible())
                     this._capture(view);
+                if (view) {
+                    const [x, y] = this.box.get_transformed_position();
+                    const [w, h] = this.box.get_transformed_size();
+                    const r = view.layout;
+                    if (this.blur.visible && x < r.x + r.width && x + w > r.x && y < r.y + r.height && y + h > r.y)
+                        this._paintedViews.add(view);
+                    else
+                        this._paintedViews.delete(view);
+                }
             });
-            this.frames.connect(global.stage, 'after-update', () => this.guard.end());
+            this.frames.connect(global.stage, 'after-update', () => {
+                this._inFrame = false;
+                this.guard.end();
+            });
             this.signals.connect(global.display, 'restacked', () => this._repaint());
             this.update();
         } catch (error) {
@@ -114,7 +140,10 @@ export class Surface {
             if (source.clip_to_allocation && (source.width <= 0 || source.height <= 0))
                 return false;
         }
-        return true;
+        const [x, y] = this.box.get_transformed_position();
+        const [width, height] = this.box.get_transformed_size();
+        return Main.layoutManager.monitors.some(m => x < m.x + m.width &&
+            x + width > m.x && y < m.y + m.height && y + height > m.y);
     }
 
     _syncVisibility() {
@@ -124,7 +153,8 @@ export class Surface {
         if (this.group.visible !== visible) {
             this.group.visible = visible;
             if (!visible) {
-                this.guard.end();
+                if (!this._inFrame)
+                    this.guard.end();
                 // BACKGROUND sampling can exceed the damage rectangle. Clear
                 // it once on hide, never continuously from a frame callback.
                 global.stage.queue_redraw();
@@ -134,6 +164,21 @@ export class Surface {
             }
         }
         return visible;
+    }
+
+    _queueLayoutSync() {
+        if (this._destroyed || this._layoutLater)
+            return;
+        // Allocation notifications describe individual steps of the slider's
+        // layout. Commit only its final clip, geometry and capture together.
+        this._layoutLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+            this._layoutLater = 0;
+            if (this._syncVisibility()) {
+                this._geometry();
+                this._capture();
+            }
+            return false;
+        });
     }
 
     update() {
@@ -220,7 +265,17 @@ export class Surface {
     _capture(view = null) {
         if (!this.backend || !this.blur.visible || !this._visible())
             return;
-        const fade = this.box.get_paint_opacity() / 255;
+        let fade = this.box.get_paint_opacity() / 255;
+        if (this.options.dock) {
+            const [x, y] = this.box.get_transformed_position();
+            const [width, height] = this.box.get_transformed_size();
+            if (width > 0 && height > 0) {
+                const area = Main.layoutManager.monitors.reduce((sum, m) => sum +
+                    Math.max(0, Math.min(x + width, m.x + m.width) - Math.max(x, m.x)) *
+                    Math.max(0, Math.min(y + height, m.y + m.height) - Math.max(y, m.y)), 0);
+                fade *= Math.min(1, area / (width * height));
+            }
+        }
         syncBackdropCapture(this._state, view, this.backend.api, this.property,
             this._radius * fade, 100 + (this._brightness - 100) * fade, this._hz);
     }
@@ -252,12 +307,16 @@ export class Surface {
         if (this._destroyed)
             return;
         this._destroyed = true;
+        if (this._layoutLater)
+            global.compositor.get_laters().remove(this._layoutLater);
+        this._layoutLater = 0;
         if (this._appearanceLater)
             global.compositor.get_laters().remove(this._appearanceLater);
         this._appearanceLater = 0;
         this._generation++;
         this.signals.clear();
         this.frames.clear();
+        this._paintedViews.clear();
         this.guard.end();
         this._stopDamage?.();
         this._stopDamage = null;

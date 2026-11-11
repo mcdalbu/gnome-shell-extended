@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Regression coverage against real Shell surfaces and the local dock fork."""
 import math
+import os
 import subprocess
 import time
 
 
 def run(evaluate, wait, check, screenshot, results, root, output, variant, display_env, log):
+    test_panel_fade(evaluate, wait, check, results)
     # Color scheme changes must work without restarting the extension.
     evaluate("globalThis.interfaceSettings=Gio.Settings.new('org.gnome.desktop.interface');cfg.set_string('panel-style','theme');interfaceSettings.set_string('color-scheme','prefer-dark')")
     time.sleep(0.3)
@@ -45,6 +47,11 @@ def run(evaluate, wait, check, screenshot, results, root, output, variant, displ
     evaluate("Main.screenshotUI.close(true);cfg.set_int('blur-radius',24);cfg.set_double('surface-opacity',0.85);cfg.set_double('blur-brightness',0.8)")
 
     # A mapped dock with a zero clip must release its painted pixels, then return.
+    wait("ext._manager._slots.get('docks').instance.records.get(dock).binding.surface?.group?.visible")
+    evaluate("globalThis.clipFlicker=0;globalThis.clipProbe=ext._manager._slots.get('docks').instance.records.get(dock).binding.surface.group.connect('notify::visible',()=>clipFlicker++);dock.set_clip(0,0,0,0);dock.remove_clip()")
+    time.sleep(0.15)
+    check('transient-clip-does-not-toggle-backdrop', 'clipFlicker===0')
+    evaluate("ext._manager._slots.get('docks').instance.records.get(dock).binding.surface.group.disconnect(clipProbe)")
     evaluate('dock.set_clip(0,0,0,0)')
     wait("!ext._manager._slots.get('docks').instance.records.get(dock).binding.surface.group.visible")
     check('mapped-zero-clip-hidden', 'dock.mapped && dockBg.mapped')
@@ -59,11 +66,16 @@ def run_dock(evaluate, wait, check, screenshot, results, root, output, variant, 
     # Load a real dock in the private session; hover uses a virtual pointer.
     wait('!Main.layoutManager._startingUp && !Main.overview.animationInProgress')
     evaluate("scene.hide();cfg.set_boolean('docks-enabled',true);cfg.set_boolean('dock-blur',true)")
+    if os.environ.get('GSE_TEST_FLICKER'):
+        blur = 'true' if os.environ.get('GSE_TEST_FLICKER_BLUR') else 'false'
+        evaluate("cfg.set_string('blur-backend','auto');cfg.set_int('update-frequency',0);cfg.set_boolean('dock-blur',"+blur+");Gio.Settings.new('org.gnome.desktop.interface').set_string('color-scheme','prefer-dark')")
     evaluate("Main.extensionManager.enableExtension('dash-to-dock-extended@local')")
     wait("Main.extensionManager.lookup('dash-to-dock-extended@local')?.state===1")
     evaluate("(async()=>{globalThis.realDockModule=await import(Main.extensionManager.lookup('dash-to-dock-extended@local').dir.get_uri()+'/extension.js')})()")
     wait('globalThis.realDockModule?.dockManager?.mainDock')
     evaluate("globalThis.dockSettings=realDockModule.dockManager.extension.getSettings();dockSettings.set_enum('dock-position',St.Side.BOTTOM);dockSettings.set_boolean('dock-fixed',false);dockSettings.set_boolean('intellihide',true);dockSettings.set_boolean('autohide',true);dockSettings.set_boolean('require-pressure-to-show',false);dockSettings.set_double('show-delay',0);dockSettings.set_double('hide-delay',0);dockSettings.set_double('animation-time',0.15);cfg.set_boolean('dock-invisible-overview',false)")
+    if os.environ.get('GSE_TEST_FLICKER'):
+        evaluate("dockSettings.set_double('animation-time',0.2)")
     time.sleep(0.8)
     evaluate("globalThis.realDock=realDockModule.dockManager.mainDock;globalThis.pointer=global.stage.get_context().get_backend().get_default_seat().create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE)")
     process = subprocess.Popen(['gjs','-m',str(root/'tests/window.js')], env=display_env, stdout=log, stderr=log)
@@ -74,7 +86,28 @@ def run_dock(evaluate, wait, check, screenshot, results, root, output, variant, 
         time.sleep(1)
         results['real-dock-debug'] = evaluate("({same:realDock===realDockModule.dockManager.mainDock,state:realDock.dockState,slide:realDock._slider.slideX,hover:realDock._box.hover,overlap:realDock._intellihide.getOverlapStatus(),target:realDock._intellihide._targetBox,required:realDock.dash.requiresVisibility,enabled:realDock.intellihideEnabled,fixed:dockSettings.get_boolean('dock-fixed'),position:[realDock.x,realDock.y],size:[realDock.width,realDock.height],overview:Main.overview.visibleTarget,windows:global.get_window_actors().map(a=>({title:a.meta_window.get_title(),rect:a.meta_window.get_frame_rect(),max:a.meta_window.is_maximized()}))})")
         wait('realDock.dockState===0')
-        check('intellihide-background-hidden', "!ext._manager._slots.get('docks').instance.records.get(realDock)?.binding.surface?.group.visible")
+        check('intellihide-background-hidden', "!ext._manager._slots.get('docks').instance.records.get(realDock)?.binding.surface?.group?.visible")
+        if os.environ.get('GSE_TEST_FLICKER'):
+            evaluate("dockSettings.set_boolean('hide-tooltip',true);(async()=>{globalThis.frameProbe=(await import('gi://FrameProbe')).default})()")
+            wait('globalThis.frameProbe')
+            evaluate('''globalThis.dockPaintFrames=[];globalThis.dockPaintReference=null;
+                globalThis.dockPaintId=global.stage.connect('after-paint',(_stage,view)=>{
+                    const monitor=Main.layoutManager.primaryMonitor;
+                    if(view.layout.x!==monitor.x || view.layout.y!==monitor.y)return;
+                    const scale=view.get_scale();
+                    const bytes=frameProbe.read(view.get_framebuffer(),0,Math.round((monitor.height-120)*scale),Math.round(monitor.width*scale),Math.round(120*scale)).get_data();
+                    if(!dockPaintReference){dockPaintReference=Array.from(bytes);return;}
+                    const box=realDock.dash._background;const [x,y]=box.get_transformed_position();const [width,height]=box.get_transformed_size();
+                    const rowWidth=Math.round(monitor.width*scale);let error=0,count=0;let strip=[0,0,0],stripCount=0;
+                    for(let i=0;i<bytes.length;i+=4){const px=(i/4)%rowWidth/scale;const py=Math.floor(i/4/rowWidth)/scale+monitor.height-120;
+                        if(realDock.dockState===0 || px<x-24 || px>x+width+24 || py<y-24){for(let c=0;c<3;c++)error+=Math.abs(bytes[i+c]-dockPaintReference[i+c]);count+=3;}
+                        if(px>x+30&&px<x+width-30&&py>y+5&&py<y+9){for(let c=0;c<3;c++)strip[c]+=bytes[i+c];stripCount++;}}
+                    const surface=ext._manager._slots.get('docks').instance.records.get(realDock)?.binding.surface;
+                    let alignment=0;
+                    if(surface?.group?.visible&&surface.blur.mapped){const a=[...surface.box.get_transformed_position(),...surface.box.get_transformed_size()];const b=[...surface.blur.get_transformed_position(),...surface.blur.get_transformed_size()];alignment=Math.max(...a.map((v,i)=>Math.abs(v-b[i])));}
+                    dockPaintFrames.push({slide:realDock._slider.slideX,state:realDock.dockState,error:count?error/count:0,alignment,strip:stripCount?strip.map(c=>c/stripCount):null});
+                });global.stage.queue_redraw();''')
+            wait('globalThis.dockPaintReference')
         for cycle in range(3):
             evaluate('pointer.notify_absolute_motion(GLib.get_monotonic_time(),Main.layoutManager.primaryMonitor.width/2,Main.layoutManager.primaryMonitor.height-1)')
             wait('realDock.dockState===2', timeout=8)
@@ -82,8 +115,61 @@ def run_dock(evaluate, wait, check, screenshot, results, root, output, variant, 
             screenshot('real-dock-visible')
             evaluate('pointer.notify_absolute_motion(GLib.get_monotonic_time(),500,200)')
             wait('realDock.dockState===0', timeout=8)
-            check(f'intellihide-hide-{cycle}', "!ext._manager._slots.get('docks').instance.records.get(realDock)?.binding.surface?.group.visible")
+            check(f'intellihide-hide-{cycle}', "!ext._manager._slots.get('docks').instance.records.get(realDock)?.binding.surface?.group?.visible")
+        if os.environ.get('GSE_TEST_FLICKER'):
+            evaluate('global.stage.disconnect(dockPaintId)')
+            frames=evaluate('dockPaintFrames')
+            results['dock-painted-frames']=frames
+            assert len(frames)>10, 'Insufficient painted animation frames'
+            assert max(frame['error'] for frame in frames)<1, 'Flicker escaped the dock bounds'
+            assert max(frame['alignment'] for frame in frames)<1, 'Blur/dock misalignment during paint'
+            if not os.environ.get('GSE_TEST_FLICKER_BLUR'):
+                check('tint-only-without-backdrop', "ext._manager._slots.get('docks').instance.records.get(realDock).binding.surfaceKind==='tint' && !ext._manager._slots.get('docks').instance.records.get(realDock).binding.surface.group")
+            evaluate("cfg.set_boolean('dock-blur',true)")
     finally:
         process.terminate()
         process.wait(timeout=5)
         evaluate('scene.show()')
+
+
+def test_panel_fade(evaluate, wait, check, results):
+    evaluate("globalThis.savedPanelAlpha=cfg.get_double('panel-opacity');globalThis.savedPanelAuto=cfg.get_boolean('panel-auto-opacity');cfg.set_boolean('panel-auto-opacity',false);cfg.set_double('panel-opacity',0.6);Main.overview.show()")
+    wait("Main.overview.visible && !Main.overview.animationInProgress")
+    check('panel-overview-custom-style-suspended', "!Main.panel.get_style()?.includes('rgba(') && Main.panel.get_theme_node().get_background_color().alpha===0")
+    check('panel-overview-window-tracking-off', "ext._manager._slots.get('panel').instance.tracked===false")
+    # Enabling while already in Overview must not flash the configured tint.
+    evaluate("cfg.set_boolean('panel-enabled',false);cfg.set_boolean('panel-enabled',true)")
+    wait("ext._manager._slots.get('panel')?.instance?.overviewActive")
+    check('panel-enable-in-overview-transparent', "Main.panel.get_theme_node().get_background_color().alpha===0")
+    evaluate("""globalThis.panelFadeFrames=[];globalThis.panelHiddenAt=0;
+        globalThis.panelHiddenProbe=Main.overview.connect('hiding',()=>panelHiddenAt=GLib.get_monotonic_time());
+        globalThis.panelPaintProbe=global.stage.connect('after-paint',()=>{
+            const panel=ext._manager._slots.get('panel')?.instance;if(!panel)return;
+            panelFadeFrames.push({time:panelHiddenAt?(GLib.get_monotonic_time()-panelHiddenAt)/1000:-1,
+                value:panel.fade?.value,returning:!!panel.returning,closing:!!panel.overviewClosing,
+                alpha:Main.panel.get_theme_node().get_background_color().alpha,
+                actor:Main.panel.opacity,button:Main.panel.statusArea.dateMenu.opacity});
+        });Main.overview.hide();""")
+    wait("!Main.overview.visible && ext._manager._slots.get('panel').instance.fade.value===1 && !ext._manager._slots.get('panel').instance.returning")
+    evaluate('global.stage.disconnect(panelPaintProbe);Main.overview.disconnect(panelHiddenProbe)')
+    frames=evaluate('panelFadeFrames')
+    results['panel-fade-frames']=frames
+    returning=[frame for frame in frames if frame['returning']]
+    assert any(0<frame['alpha']<153 for frame in returning), 'Return must animate background alpha'
+    assert all(frame['actor']==255 and frame['button']==255 for frame in frames), 'Foreground must remain opaque'
+    assert all(frame['alpha']<=154 for frame in frames if frame['closing']), 'Opaque flash during Overview close'
+    completed=[frame for frame in frames if frame['time']>=0 and frame['value']==1]
+    assert completed and 200<=completed[0]['time']<=400, frames
+    results['panel-return-duration-ms']=completed[0]['time']
+    # Reopening during the return cancels it, without a late callback restoring tint.
+    evaluate('Main.overview.show()')
+    wait('Main.overview.visible && !Main.overview.animationInProgress')
+    evaluate('Main.overview.hide()')
+    wait("ext._manager._slots.get('panel').instance.returning")
+    evaluate('Main.overview.show()')
+    wait('Main.overview.visible && !Main.overview.animationInProgress')
+    time.sleep(0.3)
+    check('panel-interrupted-return-remains-transparent', "Main.panel.get_theme_node().get_background_color().alpha===0 && ext._manager._slots.get('panel').instance.fade.value===0")
+    evaluate('Main.overview.hide()')
+    wait("!Main.overview.visible && ext._manager._slots.get('panel').instance.fade.value===1")
+    evaluate("cfg.set_double('panel-opacity',savedPanelAlpha);cfg.set_boolean('panel-auto-opacity',savedPanelAuto)")

@@ -13,3 +13,7 @@ novo esquema, seleção de backend e frequência por capacidade.
 Essas rotinas não constituem uma biblioteca EGL nova. O pipeline opcional
 GNOME Rounded Blur é uma dependência externa não incluída no ZIP. O backend
 nativo usa Shell.BlurEffect fornecido pelo GNOME Shell.
+
+O probe de framebuffer em `tests/frame_probe.py` e `tests/frame-probe.{c,h}`
+também deriva do GNOME Extended, sob GPL-2.0-or-later. Ele é compilado em uma
+pasta temporária apenas para testes e não é incluído na extensão distribuída.

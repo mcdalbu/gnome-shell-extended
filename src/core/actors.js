@@ -56,6 +56,17 @@ export class SurfaceBinding {
             return;
         }
         this.arrowStyle?.set('-arrow-background-color: transparent;');
+        const alpha = this.options?.opacity?.() ?? this.settings.get_double('surface-opacity');
+        const kind = this.options?.blur?.() !== false && alpha < 1 &&
+            this.settings.get_int('blur-radius') > 0 &&
+            this.settings.get_string('blur-backend') !== 'off' ? 'blur' : 'tint';
+        if (kind !== this.surfaceKind) {
+            this.token++;
+            this.loading = false;
+            this.surface?.destroy();
+            this.surface = null;
+            this.surfaceKind = kind;
+        }
         if (this.surface) {
             this.surface.update();
             return;
@@ -64,12 +75,13 @@ export class SurfaceBinding {
             return;
         const token = ++this.token;
         this.loading = true;
-        import('./surface.js').then(({Surface}) => {
+        import(kind === 'blur' ? './surface.js' : './tintSurface.js').then(exports => {
             if (this.closed || token !== this.token)
                 return;
             this.loading = false;
             if (this.enabled() && this.box.mapped && this.anchor.get_parent())
-                this.surface = new Surface(this.box, this.anchor, this.settings, this.logger, this.options);
+                this.surface = new (kind === 'blur' ? exports.Surface : exports.TintSurface)(
+                    this.box, this.anchor, this.settings, this.logger, this.options);
         }).catch(error => {
             if (!this.closed && token === this.token) {
                 this.loading = false;

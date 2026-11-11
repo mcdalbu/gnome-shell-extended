@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import Meta from 'gi://Meta';
+import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -25,6 +26,11 @@ export default class PanelModule {
             this.disable();
         });
         this.style = new StyleLease(this.panel);
+        this.overviewActive = Main.overview.visible;
+        this.overviewClosing = this.overviewActive && !Main.overview.visibleTarget;
+        this.fade = new St.Adjustment({actor: this.panel, lower: 0, upper: 1,
+            value: this.overviewActive ? 0 : 1});
+        this.signals.connect(this.fade, 'notify::value', () => this._applyAppearance());
         this.interface = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
         this.signals.connect(this.interface, 'changed::color-scheme', () => this.sync(true));
         if (St.Settings.list_properties().some(p => p.name === 'color-scheme'))
@@ -40,9 +46,72 @@ export default class PanelModule {
         });
         this.signals.connect(St.ThemeContext.get_for_stage(global.stage), 'changed', () => this.sync(true));
         this.signals.connect(Main.layoutManager, 'monitors-changed', this.queue);
-        this.signals.connect(Main.overview, 'showing', this.queue);
-        this.signals.connect(Main.overview, 'hidden', this.queue);
+        this.signals.connect(Main.overview, 'showing', () => this._suspendForOverview());
+        this.signals.connect(Main.overview, 'hiding', () => this._startReturn());
+        this.signals.connect(Main.overview, 'hidden', () => this._returnFromOverview());
+        if (this.overviewClosing)
+            this._startReturn();
+        else
+            this.sync(true);
+    }
+
+    _restoreAppearance() {
+        this.style.restore();
+        for (const style of this.foregrounds.values())
+            style.restore();
+    }
+
+    _suspendForOverview() {
+        this.overviewActive = true;
+        this.overviewClosing = false;
+        if (this._returnLater)
+            global.compositor.get_laters().remove(this._returnLater);
+        this._returnLater = 0;
+        this.fade.remove_transition('value');
+        this.fade.value = 0;
+        this.returning = false;
+        this._restoreAppearance();
+        this._track(false);
+    }
+
+    _startReturn() {
+        this.overviewActive = false;
+        this.overviewClosing = true;
+        this.returning = true;
+        this.fade.remove_transition('value');
+        this.fade.value = 0;
         this.sync(true);
+        // Match the legacy transition: return during Overview's closing
+        // animation, not an additional delay after it has already closed.
+        this.fade.ease(1, {duration: 250, mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this.returning = false;
+                this._applyAppearance();
+            }});
+    }
+
+    _returnFromOverview() {
+        this.overviewActive = false;
+        this.overviewClosing = false;
+        if (this._returnLater)
+            global.compositor.get_laters().remove(this._returnLater);
+        // Shell resets Main.panel.style after emitting hidden. Reapply the
+        // current fade value after that handler, without restarting the fade.
+        this._returnLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+            this._returnLater = 0;
+            if (this.disabled || this.overviewActive || Main.overview.visible)
+                return false;
+            this.sync(true);
+            return false;
+        });
+    }
+
+    _applyAppearance() {
+        if (this.disabled || this.overviewActive || !this.appearance)
+            return;
+        const {color, foreground, alpha} = this.appearance;
+        const visibleAlpha = alpha * this.fade.value;
+        this.style.set(`background-color: rgba(${color.join(',')},${visibleAlpha}); color: ${foreground}; background-image: none; transition-duration: ${this.returning ? 0 : 150}ms;`);
     }
 
     _watch(window) {
@@ -86,6 +155,13 @@ export default class PanelModule {
             return;
         this.updating = true;
         try {
+            if (themeChanged)
+                this.color = null;
+            if (this.overviewActive || (Main.overview.visible && !this.overviewClosing)) {
+                this._restoreAppearance();
+                this._track(false);
+                return;
+            }
             this._track(this.settings.get_boolean('panel-auto-opacity'));
             if (!this.color || themeChanged) {
                 this.style.restore();
@@ -93,7 +169,7 @@ export default class PanelModule {
                 this.color = [color.red, color.green, color.blue];
             }
             let key = 'panel-opacity';
-            if (this.tracked && !Main.overview.visible) {
+            if (this.tracked && (!Main.overview.visible || this.overviewClosing)) {
                 const monitor = Main.layoutManager.findMonitorForActor(this.panel)?.index ?? Main.layoutManager.primaryIndex;
                 const workspace = global.workspace_manager.get_active_workspace();
                 const windows = [...this.windows.keys()].filter(window => !window.minimized &&
@@ -113,8 +189,9 @@ export default class PanelModule {
                 light && this.color.every(c => c < 100) ? [246, 245, 244] :
                     !light && this.color.every(c => c > 180) ? [25, 25, 28] : this.color;
             const alpha = this.settings.get_double(key);
-            this.style.set(`background-color: rgba(${color.join(',')},${alpha}); color: ${light ? '#202024' : '#ffffff'}; background-image: none; transition-duration: 150ms;`);
             const foreground = light ? '#202024' : '#ffffff';
+            this.appearance = {color, foreground, alpha};
+            this._applyAppearance();
             const visit = (actor, depth) => {
                 if (actor.has_style_class_name?.('panel-button')) {
                     if (!this.foregrounds.has(actor)) {
@@ -141,7 +218,13 @@ export default class PanelModule {
         if (this.disabled)
             return;
         this.disabled = true;
+        if (this._returnLater)
+            global.compositor.get_laters().remove(this._returnLater);
+        this._returnLater = 0;
+        this.fade?.remove_transition('value');
         this.signals.clear();
+        this.fade?.run_dispose();
+        this.fade = null;
         this.tracking.clear();
         this.scope.dispose();
         for (const signals of this.windows.values())
@@ -155,5 +238,6 @@ export default class PanelModule {
         }
         this.foregrounds.clear();
         this.interface = null;
+        this.appearance = null;
     }
 }

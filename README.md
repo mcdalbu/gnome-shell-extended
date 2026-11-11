@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **0.3.0** (primeira implementação funcional).
+preferências GTK4/Libadwaita. Versão **0.3.1** (primeira implementação funcional).
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -33,6 +33,21 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
+
+## Correções da versão 0.3.1
+
+- Transparência sem blur usa apenas o estilo nativo do widget: não cria atores
+  de fundo, capturas nem callbacks por frame.
+- Alterações de recorte durante a alocação são consolidadas antes de atualizar
+  a visibilidade, geometria e captura do blur; recortes intermediários vazios
+  não provocam alternâncias de fundo durante o recolhimento.
+- A proteção de redraw limpa também a view que exibiu o blur no frame anterior,
+  mesmo quando o dock já saiu da tela. O filtro diminui com a área visível do dock.
+- No Overview, o painel devolve seus estilos ao tema do Shell. Ao fechar, o
+  fundo configurado retorna com fade de 250 ms, como no legado, sem alterar a
+  opacidade de textos e ícones. Reabrir o Overview cancela o fade imediatamente.
+- O teste de animação lê o framebuffer apresentado, sem gerar uma captura de
+  tela adicional que poderia esconder artefatos de redraw parcial.
 
 ## Correções da versão 0.3.0
 
@@ -97,6 +112,7 @@ gnome-shell-extended/
 │   │   ├── moduleManager.js
 │   │   ├── utils.js
 │   │   ├── actors.js
+│   │   ├── tintSurface.js
 │   │   ├── surface.js
 │   │   ├── backgrounds.js
 │   │   ├── blurBackend.js

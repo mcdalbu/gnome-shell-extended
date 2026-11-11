@@ -85,7 +85,8 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
 
         const panel = page('panel', 'Painel', 'view-more-symbolic');
         toggle(group(panel, 'Barra superior'), 'panel-enabled', 'Ativar painel adaptativo');
-        const panelOptions = dependent(panel, 'panel-enabled', 'Aparência e comportamento');
+        const panelOptions = dependent(panel, 'panel-enabled', 'Aparência e comportamento',
+            'No Overview, o estilo personalizado é suspenso. Ao fechar, apenas o fundo retorna com fade de 250 ms; textos e ícones permanecem opacos.');
         choice(panelOptions, 'panel-style', 'Cor do fundo', ['theme', 'light', 'dark'], ['Do tema', 'Clara', 'Escura']);
         toggle(panelOptions, 'panel-auto-opacity', 'Opacidade automática', 'Considera as janelas do workspace no monitor da barra.');
         number(panelOptions, 'panel-opacity', 'Opacidade normal', 0, 1, 0.05);
@@ -124,7 +125,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         toggle(appOptions, 'opacity-gtk-settings-sidebar', 'Barra lateral do Configurações',
             'Adiciona uma classe CSS via overlay do recurso CcWindow e lançador D-Bus reversível do usuário. Requer gresource e reinício do aplicativo.');
 
-        const maintenance = group(blur, 'Gnome Shell Extended 0.3.0', 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
+        const maintenance = group(blur, 'Gnome Shell Extended 0.3.1', 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
         const reset = new Adw.ActionRow({title: 'Restaurar configurações da extensão'});
         const button = new Gtk.Button({label: 'Restaurar', valign: Gtk.Align.CENTER});
         button.connect('clicked', () => {

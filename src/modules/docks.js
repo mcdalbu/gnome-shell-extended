@@ -69,7 +69,7 @@ export default class DocksModule {
         record.binding = new SurfaceBinding({box, anchor: actor,
             settings: this.settings, logger: this.logger,
             enabled: () => this.active && !this._invisible(),
-            options: {opacity: () => this.settings.get_double('dock-opacity'),
+            options: {dock: true, opacity: () => this.settings.get_double('dock-opacity'),
                 blur: () => this.settings.get_boolean('dock-blur')},
         });
     }

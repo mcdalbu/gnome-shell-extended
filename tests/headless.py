@@ -13,7 +13,17 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 UUID = 'gnome-shell-extended@mcda'
 OUTPUT = ROOT / 'validation'
-VARIANT = 'regressions-multi' if os.environ.get('GSE_TEST_REGRESSIONS') and os.environ.get('GSE_TEST_MULTI') else 'regressions' if os.environ.get('GSE_TEST_REGRESSIONS') else 'fallback' if os.environ.get('GSE_TEST_NO_OPTIONAL') else 'multi' if os.environ.get('GSE_TEST_MULTI') else 'single'
+if os.environ.get('GSE_TEST_FLICKER'):
+    VARIANT = 'flicker-blur' if os.environ.get('GSE_TEST_FLICKER_BLUR') else 'flicker'
+elif os.environ.get('GSE_TEST_REGRESSIONS'):
+    VARIANT = 'regressions'
+elif os.environ.get('GSE_TEST_NO_OPTIONAL'):
+    VARIANT = 'fallback'
+else:
+    VARIANT = 'single'
+if os.environ.get('GSE_TEST_MULTI'):
+    VARIANT += '-multi'
+
 
 
 def stage():
@@ -67,6 +77,9 @@ export default class Helper extends Extension {
         env = dict(os.environ, GSE_TEST_CHILD='1', XDG_DATA_HOME=str(base / 'data'),
                    XDG_CONFIG_HOME=str(base / 'config'), XDG_CACHE_HOME=str(base / 'cache'),
                    XDG_STATE_HOME=str(base / 'state'), XDG_RUNTIME_DIR=str(base / 'runtime'))
+        if os.environ.get('GSE_TEST_FLICKER'):
+            from frame_probe import build_probe
+            env.update(build_probe(base))
         for key in ['DISPLAY', 'WAYLAND_DISPLAY', 'DBUS_STARTER_ADDRESS', 'DBUS_STARTER_BUS_TYPE']:
             env.pop(key, None)
         try:
@@ -188,7 +201,7 @@ def test():
             evaluate("cfg.set_int('update-frequency',1)")
             check('backend-rate-clamped', "[...ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface._state.captures.values()].every(c=>c.effect.frame_divisor<=4)")
         evaluate("cfg.set_string('blur-backend','off')")
-        check('backend-off-clears-captures', "ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface._state.captures.size===0")
+        check('backend-off-clears-captures', "(ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface?._state?.captures.size??0)===0")
         evaluate("cfg.set_string('blur-backend','native');cfg.set_int('update-frequency',0)")
         evaluate('Main.panel.statusArea.dateMenu.menu.close();')
         wait('!ext._manager._slots.get("blur").instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor)?.surface')

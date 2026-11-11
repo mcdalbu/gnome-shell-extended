@@ -20,11 +20,11 @@ export class BlurRedrawGuard {
         this._flag = clutter.DrawDebugFlag.DISABLE_CLIPPED_REDRAWS;
     }
 
-    begin(actor, view, source = actor) {
+    begin(actor, view, source = actor, force = false) {
         this.end();
-        if (!actor?.mapped || actor.get_paint_opacity() === 0)
+        if (!force && (!actor?.mapped || actor.get_paint_opacity() === 0))
             return;
-        if (view && !this._intersects(actor, view.layout) &&
+        if (!force && view && !this._intersects(actor, view.layout) &&
             (source === actor || !this._intersects(source, view.layout)))
             return;
         if (owners.size === 0) {
