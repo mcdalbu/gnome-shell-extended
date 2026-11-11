@@ -1,0 +1,22 @@
+{
+  "uuid": "gnome-shell-extended@mcda",
+  "name": "Gnome Shell Extended",
+  "url": "https://github.com/mcdalbu/gnome-shell-extended",
+  "description": "Blur e transparência no GNOME Shell, painel adaptativo, docks, sombras e integração opcional com GTK/Ptyxis.",
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51"
+  ],
+  "version": 3,
+  "version-name": "0.3.0",
+  "settings-schema": "org.gnome.shell.extensions.gnome-shell-extended",
+  "session-modes": [
+    "user",
+    "unlock-dialog"
+  ]
+}

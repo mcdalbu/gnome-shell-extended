@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.gnome-shell-extended" path="/org/gnome/shell/extensions/gnome-shell-extended/">
+    <key name="blur-enabled" type="b">
+      <default>true</default>
+      <summary>Enable blur module</summary>
+      <description>Enable this independently managed module. Disabling restores owned resources.</description>
+    </key>
+    <key name="panel-enabled" type="b">
+      <default>true</default>
+      <summary>Enable panel module</summary>
+      <description>Enable this independently managed module. Disabling restores owned resources.</description>
+    </key>
+    <key name="opacity-enabled" type="b">
+      <default>false</default>
+      <summary>Enable opacity module</summary>
+      <description>Enable this independently managed module. Disabling restores owned resources.</description>
+    </key>
+    <key name="shadows-enabled" type="b">
+      <default>false</default>
+      <summary>Enable shadows module</summary>
+      <description>Enable this independently managed module. Disabling restores owned resources.</description>
+    </key>
+    <key name="docks-enabled" type="b">
+      <default>false</default>
+      <summary>Enable docks module</summary>
+      <description>Enable this independently managed module. Disabling restores owned resources.</description>
+    </key>
+    <key name="debug-logging" type="b">
+      <default>false</default>
+      <summary>Debug logging</summary>
+      <description>Read when the extension is enabled. Errors are always logged.</description>
+    </key>
+    <key name="blur-backend" type="s">
+      <choices><choice value="auto"/><choice value="native"/><choice value="lightweight"/><choice value="off"/></choices>
+      <default>'auto'</default>
+      <summary>Blur backend</summary>
+      <description>auto selects a supported backend; native uses Shell.BlurEffect; lightweight requires a capability-checked optional backend; off disables blur.</description>
+    </key>
+    <key name="blur-radius" type="i">
+      <range min="0" max="100"/>
+      <default>24</default>
+      <summary>Blur radius</summary>
+      <description>Logical pixels; adapter must account for monitor scale and backend API.</description>
+    </key>
+    <key name="blur-brightness" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.8</default>
+      <summary>Blur brightness</summary>
+      <description>Background brightness only; text and icons remain unchanged.</description>
+    </key>
+    <key name="surface-opacity" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.85</default>
+      <summary>Surface opacity</summary>
+      <description>Background alpha only; never use actor opacity on text or icons.</description>
+    </key>
+    <key name="update-frequency" type="i">
+      <range min="0" max="120"/>
+      <default>0</default>
+      <summary>Update frequency</summary>
+      <description>Requested maximum blur capture rate in Hz. Zero means compositor-driven. Effective only if the backend supports throttling; never create a polling redraw loop.</description>
+    </key>
+    <key name="resize-debounce-ms" type="i">
+      <range min="0" max="1000"/>
+      <default>80</default>
+      <summary>Resize debounce ms</summary>
+      <description>Trailing debounce for geometry changes, not for driving animations.</description>
+    </key>
+    <key name="panel-opacity" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.75</default>
+      <summary>Panel opacity</summary>
+      <description>Normal panel background alpha.</description>
+    </key>
+    <key name="panel-maximized-opacity" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>1.0</default>
+      <summary>Panel maximized opacity</summary>
+      <description>Panel background alpha when a window is maximized on its monitor.</description>
+    </key>
+    <key name="panel-fullscreen-opacity" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.0</default>
+      <summary>Panel fullscreen opacity</summary>
+      <description>Panel background alpha when a window is fullscreen on its monitor.</description>
+    </key>
+    <key name="gtk-background-opacity" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.9</default>
+      <summary>Gtk background opacity</summary>
+      <description>Requested selective GTK background alpha; requires application-side integration.</description>
+    </key>
+    <key name="dock-opacity" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.8</default>
+      <summary>Dock opacity</summary>
+      <description>Dock background alpha.</description>
+    </key>
+    <key name="shadow-opacity" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.4</default>
+      <summary>Shadow opacity</summary>
+      <description>Icon shadow alpha.</description>
+    </key>
+    <key name="shadow-radius" type="i">
+      <range min="0" max="64"/>
+      <default>8</default>
+      <summary>Shadow radius</summary>
+      <description>Icon shadow blur radius in logical pixels.</description>
+    </key>
+    <key name="shadow-offset-x" type="i">
+      <range min="-64" max="64"/>
+      <default>0</default>
+      <summary>Shadow offset x</summary>
+      <description>Horizontal icon shadow offset in logical pixels.</description>
+    </key>
+    <key name="shadow-offset-y" type="i">
+      <range min="-64" max="64"/>
+      <default>2</default>
+      <summary>Shadow offset y</summary>
+      <description>Vertical icon shadow offset in logical pixels.</description>
+    </key>
+    <key name="panel-style" type="s">
+      <choices><choice value="theme"/><choice value="light"/><choice value="dark"/></choices>
+      <default>'theme'</default>
+      <summary>Panel color style</summary>
+      <description>theme preserves theme colors; light and dark request explicit background styles.</description>
+    </key>
+    <key name="blur-calendar" type="b">
+      <default>true</default>
+      <summary>Blur calendar</summary>
+      <description>Enable this target while the blur module is active. Surfaces are allocated on opening and released on closing.</description>
+    </key>
+    <key name="blur-quick-settings" type="b">
+      <default>true</default>
+      <summary>Blur quick-settings</summary>
+      <description>Enable this target while the blur module is active. Surfaces are allocated on opening and released on closing.</description>
+    </key>
+    <key name="blur-menus" type="b">
+      <default>false</default>
+      <summary>Blur menus</summary>
+      <description>Enable this target while the blur module is active. Surfaces are allocated on opening and released on closing.</description>
+    </key>
+    <key name="blur-notifications" type="b">
+      <default>false</default>
+      <summary>Blur notifications</summary>
+      <description>Enable this target while the blur module is active. Surfaces are allocated on opening and released on closing.</description>
+    </key>
+    <key name="blur-dialogs" type="b">
+      <default>false</default>
+      <summary>Blur dialogs</summary>
+      <description>Enable this target while the blur module is active. Surfaces are allocated on opening and released on closing.</description>
+    </key>
+    <key name="blur-folders" type="b">
+      <default>false</default>
+      <summary>Blur folders</summary>
+      <description>Enable this target while the blur module is active. Surfaces are allocated on opening and released on closing.</description>
+    </key>
+    <key name="blur-alt-tab" type="b">
+      <default>false</default>
+      <summary>Blur alt-tab</summary>
+      <description>Enable this target while the blur module is active. Surfaces are allocated on opening and released on closing.</description>
+    </key>
+    <key name="blur-osd" type="b">
+      <default>false</default>
+      <summary>Blur osd</summary>
+      <description>Enable this target while the blur module is active. Surfaces are allocated on opening and released on closing.</description>
+    </key>
+    <key name="blur-screenshot" type="b">
+      <default>false</default>
+      <summary>Blur screenshot</summary>
+      <description>Enable this target while the blur module is active. Surfaces are allocated on opening and released on closing.</description>
+    </key>
+    <key name="blur-overview" type="b">
+      <default>false</default>
+      <summary>Blur overview</summary>
+      <description>Enable this target while the blur module is active. Surfaces are allocated on opening and released on closing.</description>
+    </key>
+    <key name="blur-lock-screen" type="b">
+      <default>false</default>
+      <summary>Blur lock-screen</summary>
+      <description>Enable this target while the blur module is active. Surfaces are allocated on opening and released on closing.</description>
+    </key>
+    <key name="opacity-gtk-files-sidebar" type="b">
+      <default>false</default>
+      <summary>Selective opacity: gtk-files-sidebar</summary>
+      <description>Optional application-side integration. Restart the application after changing GTK CSS. Settings uses a reversible CcWindow resource overlay and user D-Bus launcher.</description>
+    </key>
+    <key name="opacity-gtk-settings-sidebar" type="b">
+      <default>false</default>
+      <summary>Selective opacity: gtk-settings-sidebar</summary>
+      <description>Optional application-side integration. Restart the application after changing GTK CSS. Settings uses a reversible CcWindow resource overlay and user D-Bus launcher.</description>
+    </key>
+    <key name="opacity-gtk-menus" type="b">
+      <default>false</default>
+      <summary>Selective opacity: gtk-menus</summary>
+      <description>Optional application-side integration. Restart the application after changing GTK CSS. Settings uses a reversible CcWindow resource overlay and user D-Bus launcher.</description>
+    </key>
+    <key name="opacity-ptyxis" type="b">
+      <default>false</default>
+      <summary>Selective opacity: ptyxis</summary>
+      <description>Optional application-side integration. Restart the application after changing GTK CSS. Settings uses a reversible CcWindow resource overlay and user D-Bus launcher.</description>
+    </key>
+    <key name="panel-auto-opacity" type="b">
+      <default>true</default>
+      <summary>Panel auto opacity</summary>
+      <description>Applies while the corresponding module is enabled.</description>
+    </key>
+    <key name="dock-blur" type="b">
+      <default>false</default>
+      <summary>Dock blur</summary>
+      <description>Applies while the corresponding module is enabled.</description>
+    </key>
+    <key name="dock-invisible-overview" type="b">
+      <default>false</default>
+      <summary>Dock invisible overview</summary>
+      <description>Applies while the corresponding module is enabled.</description>
+    </key>
+    <key name="shadow-app-grid" type="b">
+      <default>false</default>
+      <summary>Shadow app grid</summary>
+      <description>Applies while the corresponding module is enabled.</description>
+    </key>
+    <key name="shadow-dock" type="b">
+      <default>false</default>
+      <summary>Shadow dock</summary>
+      <description>Applies while the corresponding module is enabled.</description>
+    </key>
+    <key name="shadow-alt-tab" type="b">
+      <default>false</default>
+      <summary>Shadow alt tab</summary>
+      <description>Applies while the corresponding module is enabled.</description>
+    </key>
+    <key name="windows-blur" type="b">
+      <default>true</default>
+      <summary>Blur behind transparent application backgrounds</summary>
+      <description>Blur beneath selected Nautilus, Settings, Ptyxis and GTK menu surfaces. Native opaque pixels, text and icons remain unchanged. Requires opacity-enabled and a selected application integration.</description>
+    </key>
+  </schema>
+</schemalist>

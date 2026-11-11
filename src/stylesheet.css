@@ -1,0 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* Global CSS stays empty by design. Surface/panel styles use reversible leases;
+ * configurable icon-shadow rules are loaded and unloaded by the shadows module.
+ * Native theme styling is the fallback when a module is disabled. */
