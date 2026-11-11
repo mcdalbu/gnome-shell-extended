@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **0.3.1** (primeira implementação funcional).
+preferências GTK4/Libadwaita. Versão **0.3.2** (primeira implementação funcional).
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -33,6 +33,21 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
+
+## Correções da versão 0.3.2
+
+- O retorno do fundo do painel usa fade-in de 250 ms com aceleração e
+  desaceleração suaves. O dock usa a mesma curva quando a opção **Fundo
+  invisível no Overview** está ativa; textos e ícones mantêm sua opacidade.
+- Menus conservam a transparência e o blur durante toda a animação de
+  fechamento. O backdrop acompanha a opacidade do conteúdo e só é liberado
+  quando o widget deixa de estar mapeado, evitando a restauração opaca antecipada.
+- A validação verifica o alpha e os pixels de diálogos e dos dois seletores
+  Alt+Tab, incluindo as prévias de janelas criadas após a lista principal.
+  Ative **Diálogos** e **Alt+Tab** na aba de blur para aplicar os efeitos;
+  essas opções continuam desligadas por padrão.
+- Capturas fullscreen usam a escala do framebuffer de captura no recorte,
+  evitando deslocamentos quando os monitores usam escalas diferentes.
 
 ## Correções da versão 0.3.1
 

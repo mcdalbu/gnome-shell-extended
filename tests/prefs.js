@@ -73,8 +73,15 @@ if (ready) {
         GLib.file_set_contents(ready, 'ready');
         return GLib.SOURCE_REMOVE;
     });
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+        if (!GLib.file_test(`${ready}.close`, GLib.FileTest.EXISTS))
+            return GLib.SOURCE_CONTINUE;
+        window.close();
+        loop.quit();
+        return GLib.SOURCE_REMOVE;
+    });
 }
-GLib.timeout_add(GLib.PRIORITY_DEFAULT, ready ? 2000 : 300, () => {
+GLib.timeout_add(GLib.PRIORITY_DEFAULT, ready ? 15000 : 300, () => {
     window.close();
     loop.quit();
     return GLib.SOURCE_REMOVE;

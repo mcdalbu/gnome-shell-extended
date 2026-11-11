@@ -209,6 +209,9 @@ def test():
         wait('ext._manager._slots.get("blur").instance.bindings.get(Main.panel.statusArea.quickSettings.menu.actor)?.surface?._state.captures.size > 0')
         screenshot('quick-settings')
         evaluate('Main.panel.statusArea.quickSettings.menu.close();')
+        if os.environ.get('GSE_TEST_REGRESSIONS'):
+            from regressions import test_menu_close
+            test_menu_close(evaluate, wait, check, results)
         check('panel-style', "Main.panel.get_style().includes('rgba(')")
         evaluate("globalThis.bindingFor=box=>[...ext._manager._slots.get('blur').instance.bindings.values()].find(b=>b.box===box); cfg.set_boolean('blur-dialogs',true);cfg.set_boolean('blur-osd',true);cfg.set_boolean('blur-screenshot',true);cfg.set_boolean('blur-menus',true)")
         evaluate("(async()=>{globalThis.DialogModule=await import('resource:///org/gnome/shell/ui/modalDialog.js');globalThis.PopupModule=await import('resource:///org/gnome/shell/ui/popupMenu.js');globalThis.Clutter=(await import('gi://Clutter')).default;})()")
@@ -216,7 +219,12 @@ def test():
         evaluate("globalThis.dialog=new DialogModule.ModalDialog({destroyOnClose:false});dialog.contentLayout.add_child(new St.Label({text:'Gnome Shell Extended'}));dialog.addButton({label:'Close',action:()=>dialog.close()});dialog.open();")
         wait('bindingFor(dialog.dialogLayout._dialog ?? dialog.dialogLayout)?.surface?._state.captures.size > 0')
         check('dialog-foreground-opacity', 'dialog.contentLayout.opacity === 255')
+        check('dialog-background-alpha', '((dialog.dialogLayout._dialog ?? dialog.dialogLayout).get_theme_node().get_background_color().alpha)<255')
         screenshot('dialog')
+        if os.environ.get('GSE_TEST_REGRESSIONS'):
+            from regressions import test_surface_pixels
+            test_surface_pixels(evaluate, wait, screenshot, results, OUTPUT, VARIANT,
+                                '(dialog.dialogLayout._dialog ?? dialog.dialogLayout)', 'dialog')
         evaluate('dialog.close();')
         wait('!bindingFor(dialog.dialogLayout._dialog ?? dialog.dialogLayout)?.surface')
         evaluate('dialog.destroy();')
@@ -318,6 +326,8 @@ def test():
         # Preferences should be captured after their opening animation finishes.
         ready = OUTPUT / f'{VARIANT}-prefs-ready'
         ready.unlink(missing_ok=True)
+        close_ready = Path(str(ready)+'.close')
+        close_ready.unlink(missing_ok=True)
         evaluate('scene.hide()')
         prefs_env = dict(display_env, GSE_PREFS_READY=str(ready))
         prefs = subprocess.Popen(['gjs', '-m', str(ROOT / 'tests/prefs.js'), str(ROOT / 'build' / UUID)],
@@ -330,6 +340,7 @@ def test():
                 wait("global.get_window_actors().some(actor=>actor.mapped && actor.meta_window.get_title()==='Gnome Shell Extended')")
                 time.sleep(0.6)
                 screenshot('preferences')
+                close_ready.touch()
             stdout, stderr = prefs.communicate(timeout=10)
             results['preferences'] = {'passed': prefs.returncode == 0, 'output': (stdout + stderr).strip()}
             if prefs.returncode:
@@ -339,6 +350,7 @@ def test():
                 prefs.terminate()
                 prefs.wait(timeout=5)
             ready.unlink(missing_ok=True)
+            close_ready.unlink(missing_ok=True)
             evaluate('scene.show()')
         window_process = subprocess.Popen(['gjs', '-m', str(ROOT / 'tests/window.js')],
                                           env=display_env, stdout=log, stderr=log)
@@ -346,12 +358,24 @@ def test():
             wait("global.get_window_actors().some(a=>a.meta_window.get_title()==='GSE policy test')")
             evaluate("cfg.set_boolean('blur-alt-tab',true);(async()=>{globalThis.AltTab=await import('resource:///org/gnome/shell/ui/altTab.js');})()")
             wait('globalThis.AltTab')
+            evaluate("globalThis.switcherKeyboard=global.stage.get_context().get_backend().get_default_seat().create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);switcherKeyboard.notify_keyval(GLib.get_monotonic_time(),Clutter.KEY_Alt_L,Clutter.KeyState.PRESSED)")
+            wait('(global.get_pointer()[2] & Clutter.ModifierType.MOD1_MASK)!==0')
             for kind in ['WindowSwitcherPopup', 'AppSwitcherPopup']:
-                evaluate(f"globalThis.switcher=new AltTab.{kind}();switcher.show(false,'switch-windows',0)")
+                evaluate(f"globalThis.switcher=new AltTab.{kind}();switcher.show(false,'switch-windows',Clutter.ModifierType.MOD1_MASK)")
                 wait('bindingFor(switcher._switcherList)?.surface?._state.captures.size > 0')
                 check(kind + '-foreground-opacity', 'switcher._switcherList.opacity===255')
+                check(kind + '-background-alpha', 'switcher._switcherList.get_theme_node().get_background_color().alpha<255')
+                screenshot(kind)
+                if os.environ.get('GSE_TEST_REGRESSIONS'):
+                    test_surface_pixels(evaluate, wait, screenshot, results, OUTPUT, VARIANT,
+                                        'switcher._switcherList', kind)
+                    if kind == 'AppSwitcherPopup':
+                        wait('switcher._thumbnails?.mapped && bindingFor(switcher._thumbnails)?.surface?.backend')
+                        test_surface_pixels(evaluate, wait, screenshot, results, OUTPUT, VARIANT,
+                                            'switcher._thumbnails', 'AltTab-previews')
                 evaluate('switcher.fadeAndDestroy()')
                 time.sleep(0.25)
+            evaluate('switcherKeyboard.notify_keyval(GLib.get_monotonic_time(),Clutter.KEY_Alt_L,Clutter.KeyState.RELEASED)')
             evaluate("globalThis.policyWindow=global.get_window_actors().find(a=>a.meta_window.get_title()==='GSE policy test').meta_window;policyWindow.maximize()")
             wait("Main.panel.get_style().includes(',1);')")
             check('panel-maximized-policy', 'policyWindow.maximized_horizontally && policyWindow.maximized_vertically')

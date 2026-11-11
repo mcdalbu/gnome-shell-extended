@@ -37,7 +37,12 @@ export class SurfaceBinding {
         }
         if (menu) {
             this.arrowStyle = new StyleLease(menu.actor);
-            this.signals.connect(menu, 'open-state-changed', () => this.sync());
+            // isOpen becomes false at the START of the native close fade.
+            // Keep our surface/style until unmapping, otherwise it flashes opaque.
+            this.signals.connect(menu, 'open-state-changed', () => {
+                if (menu.isOpen)
+                    this.sync();
+            });
         }
         this.sync();
     }
@@ -45,8 +50,7 @@ export class SurfaceBinding {
     sync() {
         if (this.closed)
             return;
-        const active = this.enabled() && this.box.mapped && this.anchor.mapped &&
-            (!this.menu || this.menu.isOpen);
+        const active = this.enabled() && this.box.mapped && this.anchor.mapped;
         if (!active) {
             this.token++;
             this.loading = false;

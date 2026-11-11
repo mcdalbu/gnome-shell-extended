@@ -1,4 +1,4 @@
-# Validação — Gnome Shell Extended 0.3.1
+# Validação — Gnome Shell Extended 0.3.2
 
 Data: 11 de novembro de 2026, America/Fortaleza.
 
@@ -14,7 +14,7 @@ CSS/launcher do Configurações e perfis Ptyxis.
 
 ## Regressões verificadas
 
-Evidências da versão 0.3.1: `validation/flicker-results.json` e
+Evidências da versão 0.3.2: `validation/flicker-results.json` e
 `validation/flicker-blur-multi-results.json`. As evidências locais ficam fora
 do pacote e do Git por conterem dados da sessão de teste.
 
@@ -35,10 +35,13 @@ do pacote e do Git por conterem dados da sessão de teste.
 | Limpeza | Estilos, capturas e launcher restaurados; 10 ciclos enable/disable por sessão |
 | Repouso | 0 frames novos na amostra de 0,5 segundo após estabilização |
 
-A captura de tela foi comparada com raio 48 e raio zero, mantendo a mesma
-transparência. O desvio de cor na faixa testada caiu de **19,10 para 2,81** em
-100% e de **19,06 para 12,22** na configuração de escalas mistas. Os valores
-são específicos dessas cenas, não um benchmark geral de qualidade.
+A captura de tela, os diálogos e os seletores Alt+Tab são comparados com
+raio 48 e raio zero, mantendo a mesma transparência. O teste exige redução
+de contraste na faixa do fundo, além de alpha inferior a 255 e primeiro
+plano opaco. As cenas sintéticas não representam um benchmark geral de qualidade.
+Na captura, a métrica usa diferenças horizontais de segunda ordem para medir
+as bordas das faixas, separando-as do gradiente lento criado pela seleção clara
+e pela máscara escura. Diálogos e seletores usam o desvio de cor na faixa testada.
 
 A barra lateral transparente do Configurações foi comparada sobre duas cenas;
 a região de conteúdo opaco manteve diferença média **0,00**. A opacidade do
@@ -62,7 +65,8 @@ com animação de 200 ms, nas variantes sem blur (uma view) e com blur nativo
 (views a 125% e 150%). Além dos pixels fora da região do dock e de sua sombra,
 o teste verifica o alinhamento do backdrop e recortes vazios transitórios.
 
-O cenário com blur e escalas mistas reproduziu dois frames residuais perto do
+Na regressão original da versão 0.3.1, o cenário com blur e escalas mistas
+reproduziu dois frames residuais perto do
 final do recolhimento: erro médio máximo de 2,88 níveis RGB fora do dock antes
 da correção. Após preservar o redraw da view anteriormente pintada e reduzir
 o filtro conforme o dock sai da tela, o teste passou com 69 frames, erro máximo
@@ -70,11 +74,51 @@ de 0,49 e desalinhamento zero. Na variante sem blur, a superfície usa somente
 CSS nativo, sem criar backdrop ou callbacks de frame. Esses números descrevem
 as cenas de teste; não garantem ausência de artefatos em todos os drivers.
 
-No teste com escalas mistas, a primeira apresentação do fade concluído ocorreu
-264 ms após o sinal de fechamento do Overview, com duração configurada de
-250 ms e valores intermediários de alpha confirmados. A diferença inclui a
-cadência dos frames. A limpeza de estilo feita pelo próprio Shell ao terminar
-o Overview não reinicia o fade nem produz um frame opaco.
+O retorno usa duração configurada de 250 ms e curva EASE_IN_OUT_CUBIC, com
+valores intermediários de alpha confirmados no painel e no dock real. O teste
+aceita a cadência de apresentação do compositor ao medir o frame concluído.
+A limpeza de estilo feita pelo próprio Shell ao terminar o Overview não
+reinicia o fade nem produz um frame opaco.
+
+## Fechamento e descoberta tardia (0.3.2)
+
+Os menus de calendário/notificações e configurações rápidas são observados
+em `after-paint` durante o fechamento nativo. O teste exige que a superfície
+continue viva, seu alpha permaneça translúcido e a opacidade do backdrop
+acompanhe a do conteúdo. Quando o conteúdo chega a opacidade zero, o backdrop
+deve estar invisível; depois do unmap a superfície deve ter sido liberada.
+Isso cobre a restauração antecipada de CSS causada por `isOpen = false` no
+início do fechamento.
+
+O fade de retorno é exercitado também no Dash to Dock Extended real. A cada
+frame seu alpha deve coincidir com a opacidade configurada multiplicada pelo
+progresso do fade (tolerância de dois níveis por arredondamento), enquanto os
+ícones permanecem opacos. A opção de fundo invisível no Overview está ativa
+nesse teste; desligá-la conserva o fundo configurado durante o Overview.
+Painel e dock usam o mesmo ator como referência do relógio de animação para
+evitar que views diferentes avancem suas transições em frames distintos.
+
+As prévias de janelas do AppSwitcher são descobertas depois da lista principal,
+sem polling. A mesma comparação de pixels é executada sobre elas. Capturas
+fullscreen com escala diferente da view usam a escala do framebuffer de
+captura ao construir o recorte, evitando o deslocamento observado durante a
+validação em escalas mistas.
+
+Resultados da execução final com duas views (125%/150%):
+
+| Medida | Resultado |
+| --- | --- |
+| Frames do hover/intellihide com blur | 78; erro médio máximo fora do dock de 0,0011 níveis RGB; desalinhamento zero |
+| Fade no dock real | 33 apresentações observadas, alpha dentro de dois níveis do valor esperado |
+| Progresso do fade painel/dock | Diferença máxima zero nas apresentações medidas |
+| Primeiro frame de retorno concluído | 265 ms; duração configurada de 250 ms |
+| Fechamento calendário/configurações rápidas | 9 e 17 apresentações; efeito retido e opacidade acompanhada |
+| Desvio de cor: diálogo, sem/com blur | 13,96 → 4,28 |
+| Desvio de cor: lista de janelas, sem/com blur | 33,08 → 9,25 |
+| Desvio de cor: lista de aplicativos, sem/com blur | 33,07 → 7,10 |
+| Desvio de cor: prévias de janelas, sem/com blur | 32,61 → 9,14 |
+| Bordas na captura, sem/com blur | 0,576 → 0,295 (diferença horizontal de segunda ordem) |
+| Repouso após estabilização | 0 frames na amostra de 0,5 segundo |
 
 ## Limites
 

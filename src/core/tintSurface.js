@@ -42,11 +42,19 @@ export class TintSurface {
                 const {red, green, blue} = this.box.get_theme_node().get_background_color();
                 this.color = [red, green, blue];
             }
-            const alpha = this.options.opacity?.() ?? this.settings.get_double('surface-opacity');
-            this.style.set(`background-color: rgba(${this.color.join(',')},${alpha}); background-image: none;`);
+            this.alpha = this.options.opacity?.() ?? this.settings.get_double('surface-opacity');
+            this.setFade(this.options.fade?.() ?? 1);
         } finally {
             this._writing = false;
         }
+    }
+
+    setFade(value) {
+        if (this._destroyed || !this.color)
+            return;
+        this._writing = true;
+        this.style.set(`background-color: rgba(${this.color.join(',')},${this.alpha * value}); background-image: none; transition-duration: 0ms;`);
+        this._writing = false;
     }
 
     destroy(actorDestroyed = false) {

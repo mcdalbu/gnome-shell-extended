@@ -36,13 +36,19 @@ def run(evaluate, wait, check, screenshot, results, root, output, variant, displ
         data, stride, channels = image.get_pixels(), image.get_rowstride(), image.get_n_channels()
         scale = image.get_width() / evaluate('global.stage.width')
         left, top, width, _height = rect
-        points = [tuple(data[y*stride+x*channels+c] for c in range(3))
+        # A large blur can mix the bright selection and dark mask into a slow
+        # gradient, increasing global variance despite removing stripe edges.
+        # Measure high-frequency detail instead of that low-frequency gradient.
+        values = [abs(data[y*stride+(x+1)*channels+c] -
+                      2*data[y*stride+x*channels+c] +
+                      data[y*stride+(x-1)*channels+c])
                   for y in range(round((top+5)*scale), round((top+9)*scale))
-                  for x in range(round((left+35)*scale), round((left+width-35)*scale))]
-        averages = [sum(p[c] for p in points)/len(points) for c in range(3)]
-        return math.sqrt(sum(sum((p[c]-averages[c])**2 for c in range(3)) for p in points)/len(points))
+                  for x in range(round((left+35)*scale)+1, round((left+width-35)*scale)-1)
+                  for c in range(3)]
+        return sum(values)/len(values)
     blurred, sharp = contrast('capture-blurred'), contrast('capture-sharp')
-    results['screenshot-contrast'] = {'blurred': blurred, 'sharp': sharp}
+    results['screenshot-contrast'] = {'metric': 'horizontal-second-difference',
+                                     'blurred': blurred, 'sharp': sharp}
     assert blurred < sharp * 0.8, results['screenshot-contrast']
     evaluate("Main.screenshotUI.close(true);cfg.set_int('blur-radius',24);cfg.set_double('surface-opacity',0.85);cfg.set_double('blur-brightness',0.8)")
 
@@ -126,6 +132,29 @@ def run_dock(evaluate, wait, check, screenshot, results, root, output, variant, 
             if not os.environ.get('GSE_TEST_FLICKER_BLUR'):
                 check('tint-only-without-backdrop', "ext._manager._slots.get('docks').instance.records.get(realDock).binding.surfaceKind==='tint' && !ext._manager._slots.get('docks').instance.records.get(realDock).binding.surface.group")
             evaluate("cfg.set_boolean('dock-blur',true)")
+        # Exercise the return fade on the actual dock, with its own theme and
+        # Overview handlers, instead of relying only on the synthetic fixture.
+        evaluate("cfg.set_boolean('dock-invisible-overview',true);pointer.notify_absolute_motion(GLib.get_monotonic_time(),Main.layoutManager.primaryMonitor.width/2,Main.layoutManager.primaryMonitor.height-1)")
+        wait('realDock.dockState===2')
+        evaluate('Main.overview.show()')
+        wait('Main.overview.visible && !Main.overview.animationInProgress')
+        check('real-dock-overview-background-hidden', 'realDock.dash._background.get_theme_node().get_background_color().alpha===0')
+        evaluate("""globalThis.realDockFadeFrames=[];
+            globalThis.realDockFadeProbe=global.stage.connect('after-paint',()=>{
+                const module=ext._manager._slots.get('docks').instance;
+                realDockFadeFrames.push({value:module.fade.value,
+                    alpha:realDock.dash._background.get_theme_node().get_background_color().alpha,
+                    foreground:realDock.dash.opacity});
+            });Main.overview.hide();""")
+        wait("!Main.overview.visible && ext._manager._slots.get('docks').instance.fade.value===1")
+        evaluate('global.stage.disconnect(realDockFadeProbe)')
+        frames=evaluate('realDockFadeFrames')
+        results['real-dock-fade-frames']=frames
+        alpha=evaluate("cfg.get_double('dock-opacity')*255")
+        assert any(0<f['alpha']<alpha for f in frames), frames
+        assert all(abs(f['alpha']-alpha*f['value'])<=2 for f in frames), frames
+        assert all(f['foreground']==255 for f in frames), frames
+        evaluate("cfg.set_boolean('dock-invisible-overview',false);pointer.notify_absolute_motion(GLib.get_monotonic_time(),500,200)")
     finally:
         process.terminate()
         process.wait(timeout=5)
@@ -147,6 +176,9 @@ def test_panel_fade(evaluate, wait, check, results):
             const panel=ext._manager._slots.get('panel')?.instance;if(!panel)return;
             panelFadeFrames.push({time:panelHiddenAt?(GLib.get_monotonic_time()-panelHiddenAt)/1000:-1,
                 value:panel.fade?.value,returning:!!panel.returning,closing:!!panel.overviewClosing,
+                dockValue:ext._manager._slots.get('docks')?.instance?.fade?.value,
+                dockAlpha:dockBg.get_theme_node().get_background_color().alpha,
+                dockForeground:dock.opacity,
                 alpha:Main.panel.get_theme_node().get_background_color().alpha,
                 actor:Main.panel.opacity,button:Main.panel.statusArea.dateMenu.opacity});
         });Main.overview.hide();""")
@@ -157,6 +189,9 @@ def test_panel_fade(evaluate, wait, check, results):
     returning=[frame for frame in frames if frame['returning']]
     assert any(0<frame['alpha']<153 for frame in returning), 'Return must animate background alpha'
     assert all(frame['actor']==255 and frame['button']==255 for frame in frames), 'Foreground must remain opaque'
+    assert any(0<frame['dockAlpha']<204 for frame in returning), 'Dock background must fade in'
+    assert all(frame['dockForeground']==255 for frame in frames), 'Dock foreground must remain opaque'
+    assert all(abs(frame['value']-frame['dockValue'])<0.05 for frame in returning), 'Panel/dock fades must agree'
     assert all(frame['alpha']<=154 for frame in frames if frame['closing']), 'Opaque flash during Overview close'
     completed=[frame for frame in frames if frame['time']>=0 and frame['value']==1]
     assert completed and 200<=completed[0]['time']<=400, frames
@@ -173,3 +208,60 @@ def test_panel_fade(evaluate, wait, check, results):
     evaluate('Main.overview.hide()')
     wait("!Main.overview.visible && ext._manager._slots.get('panel').instance.fade.value===1")
     evaluate("cfg.set_double('panel-opacity',savedPanelAlpha);cfg.set_boolean('panel-auto-opacity',savedPanelAuto)")
+
+
+def test_menu_close(evaluate, wait, check, results):
+    for name in ['dateMenu', 'quickSettings']:
+        evaluate(f"globalThis.closingMenu=Main.panel.statusArea.{name}.menu;closingMenu.open()")
+        wait("closingMenu.box.mapped && [...ext._manager._slots.get('blur').instance.bindings.values()].some(b=>b.box===closingMenu.box && b.surface?.backend)")
+        time.sleep(0.3)
+        evaluate("""globalThis.closeFrames=[];
+            globalThis.closeProbe=global.stage.connect('after-paint',()=>{
+                if(!closingMenu.box.mapped)return;
+                const binding=ext._manager._slots.get('blur').instance.bindings.get(closingMenu.actor);
+                const surface=binding?.surface;
+                closeFrames.push({opacity:closingMenu.box.get_paint_opacity(),
+                    alpha:closingMenu.box.get_theme_node().get_background_color().alpha,
+                    surface:!!surface,backdropOpacity:surface?.group?.opacity,
+                    backdropVisible:!!surface?.group?.visible});
+            });closingMenu.close();""")
+        check(name+'-surface-retained-at-close', "!!ext._manager._slots.get('blur').instance.bindings.get(closingMenu.actor)?.surface")
+        wait('!closingMenu.box.mapped')
+        evaluate('global.stage.disconnect(closeProbe)')
+        frames=evaluate('closeFrames')
+        results[name+'-close-frames']=frames
+        assert len(frames)>2, frames
+        assert all(f['surface'] and f['alpha']<255 for f in frames), 'Opaque restoration during close'
+        assert any(0<f['opacity']<255 for f in frames), 'Native close fade did not run'
+        assert all(abs(f['opacity']-f['backdropOpacity'])<=2 if f['opacity']>0
+                   else not f['backdropVisible'] for f in frames), frames
+        check(name+'-surface-released-after-close', "!ext._manager._slots.get('blur').instance.bindings.get(closingMenu.actor)?.surface")
+
+
+def test_surface_pixels(evaluate, wait, screenshot, results, output, variant, box, name):
+    import gi
+    gi.require_version('GdkPixbuf', '2.0')
+    from gi.repository import GdkPixbuf
+    evaluate("globalThis.pixelSettings=[cfg.get_double('surface-opacity'),cfg.get_int('blur-radius'),cfg.get_double('blur-brightness')];cfg.set_double('surface-opacity',0.15);cfg.set_int('blur-radius',48);cfg.set_double('blur-brightness',1)")
+    wait(f'bindingFor({box})?.surface?.backend')
+    time.sleep(0.3)
+    rect=evaluate(f'(()=>{{const b={box};return [...b.get_transformed_position(),...b.get_transformed_size()]}})()')
+    screenshot(name+'-blurred')
+    evaluate("cfg.set_int('blur-radius',0)")
+    time.sleep(0.3)
+    screenshot(name+'-sharp')
+    def contrast(suffix):
+        image=GdkPixbuf.Pixbuf.new_from_file(str(output/f'{variant}-{name}-{suffix}.png'))
+        data,stride,channels=image.get_pixels(),image.get_rowstride(),image.get_n_channels()
+        scale=image.get_width()/evaluate('global.stage.width')
+        x,y,w,h=rect
+        points=[tuple(data[row*stride+col*channels+c] for c in range(3))
+                for row in range(round((y+5)*scale),round((y+9)*scale))
+                for col in range(round((x+35)*scale),round((x+w-35)*scale))]
+        averages=[sum(p[c] for p in points)/len(points) for c in range(3)]
+        return math.sqrt(sum(sum((p[c]-averages[c])**2 for c in range(3)) for p in points)/len(points))
+    blurred,sharp=contrast('blurred'),contrast('sharp')
+    results[name+'-contrast']={'blurred':blurred,'sharp':sharp}
+    assert sharp>1 and blurred<sharp*0.9, results[name+'-contrast']
+    evaluate("cfg.set_double('surface-opacity',pixelSettings[0]);cfg.set_int('blur-radius',pixelSettings[1]);cfg.set_double('blur-brightness',pixelSettings[2])")
+    wait(f'bindingFor({box})?.surface?.backend')

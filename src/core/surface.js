@@ -88,7 +88,13 @@ export class Surface {
                     this.destroy();
                     return;
                 }
-                if (this.anchor.get_previous_sibling() !== this.group)
+                // A switcher can own separate app-list and thumbnail surfaces.
+                // Keep both below its root without endlessly swapping them.
+                let previous = this.anchor.get_previous_sibling();
+                while (this.options.allowSiblingGaps && previous && previous !== this.group &&
+                    previous.name === 'gse-surface')
+                    previous = previous.get_previous_sibling();
+                if (previous !== this.group)
                     parent.set_child_below_sibling(this.group, this.anchor);
                 this._geometry();
                 if (!previouslyPainted && this.backend && this._radius > 0 && this._alpha < 1)
@@ -150,6 +156,14 @@ export class Surface {
         if (!this.group || this._destroyed)
             return false;
         const visible = this._visible();
+        if (visible) {
+            // The backdrop is a sibling of the animated popup, so it must
+            // inherit the popup's fade explicitly, without fading its text.
+            const parentOpacity = this.group.get_parent()?.get_paint_opacity() ?? 255;
+            this.group.opacity = Math.round(Math.min(255,
+                255 * this.box.get_paint_opacity() / Math.max(1, parentOpacity)) *
+                (this.options.fade?.() ?? 1));
+        }
         if (this.group.visible !== visible) {
             this.group.visible = visible;
             if (!visible) {
@@ -184,16 +198,18 @@ export class Surface {
     update() {
         if (this._destroyed)
             return;
-        this._alpha = this.options.opacity?.() ?? this.settings.get_double('surface-opacity');
+        this._baseAlpha = this.options.opacity?.() ?? this.settings.get_double('surface-opacity');
+        this._alpha = this._baseAlpha * (this.options.fade?.() ?? 1);
         this._radius = this.settings.get_int('blur-radius');
         this._brightness = this.settings.get_double('blur-brightness') * 100;
         this._hz = this.settings.get_int('update-frequency');
         this._styling = true;
         this.style.restore();
         const color = this.box.get_theme_node().get_background_color();
-        this.style.set(`background-color: rgba(${color.red}, ${color.green}, ${color.blue}, ${this._alpha}); background-image: none;`);
+        this._color = [color.red, color.green, color.blue];
+        this.style.set(`background-color: rgba(${color.red}, ${color.green}, ${color.blue}, ${this._alpha}); background-image: none; transition-duration: 0ms;`);
         this._styling = false;
-        const wantBlur = this.options.blur?.() !== false && this._alpha < 1 && this._radius > 0 &&
+        const wantBlur = this.options.blur?.() !== false && this._baseAlpha < 1 && this._radius > 0 &&
             this.settings.get_string('blur-backend') !== 'off';
         this.blur.visible = wantBlur;
         if (!wantBlur) {
@@ -236,6 +252,18 @@ export class Surface {
         }
         this._geometry();
         this._syncVisibility();
+        this._repaint();
+    }
+
+    setFade(value) {
+        if (this._destroyed || !this._color)
+            return;
+        this._alpha = this._baseAlpha * value;
+        this._styling = true;
+        this.style.set(`background-color: rgba(${this._color.join(',')},${this._alpha}); background-image: none; transition-duration: 0ms;`);
+        this._styling = false;
+        this._syncVisibility();
+        this._capture();
         this._repaint();
     }
 

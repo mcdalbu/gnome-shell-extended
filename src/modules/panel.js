@@ -28,7 +28,9 @@ export default class PanelModule {
         this.style = new StyleLease(this.panel);
         this.overviewActive = Main.overview.visible;
         this.overviewClosing = this.overviewActive && !Main.overview.visibleTarget;
-        this.fade = new St.Adjustment({actor: this.panel, lower: 0, upper: 1,
+        // Use the same frame-clock owner as the dock, including mixed-scale
+        // views; otherwise their timelines can advance one view apart.
+        this.fade = new St.Adjustment({actor: Main.uiGroup, lower: 0, upper: 1,
             value: this.overviewActive ? 0 : 1});
         this.signals.connect(this.fade, 'notify::value', () => this._applyAppearance());
         this.interface = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
@@ -83,7 +85,7 @@ export default class PanelModule {
         this.sync(true);
         // Match the legacy transition: return during Overview's closing
         // animation, not an additional delay after it has already closed.
-        this.fade.ease(1, {duration: 250, mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        this.fade.ease(1, {duration: 250, mode: Clutter.AnimationMode.EASE_IN_OUT_CUBIC,
             onComplete: () => {
                 this.returning = false;
                 this._applyAppearance();

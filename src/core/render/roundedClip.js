@@ -22,13 +22,25 @@ export const RoundedClip = GObject.registerClass(class GseRoundedClip extends Cl
         const actor = this.get_actor();
         const framebuffer = context.get_framebuffer();
         const views = actor.peek_stage_views();
-        const view = views.find(v => v.get_framebuffer() === framebuffer) ?? views[0];
+        const matchedView = views.find(v => v.get_framebuffer() === framebuffer);
+        const view = matchedView ?? views[0];
         if (!view) {
             actor.continue_paint(context);
             return;
         }
-        const layout = view.layout;
-        const scale = view.get_scale();
+        let layout = view.layout;
+        let scale = view.get_scale();
+        // A full-stage screenshot uses a separate framebuffer at the stage's
+        // capture scale, which can differ from this monitor's fractional scale.
+        // Using the first view's pixel grid displaces the clip in the capture.
+        if (!matchedView) {
+            const sx = framebuffer.get_width() / global.stage.width;
+            const sy = framebuffer.get_height() / global.stage.height;
+            if (Math.abs(sx - sy) < 0.01) {
+                scale = sx;
+                layout = {x: 0, y: 0};
+            }
+        }
         // The dock backdrop is a sibling of its root, so Clutter does not
         // inherit the slide container's clip. Read it at paint time: layout
         // can finish after before-update, and a hidden dock remains mapped.

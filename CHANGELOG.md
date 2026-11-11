@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.2 — 2026-11-11
+
+- Suaviza o fade-in do painel com curva cúbica e mantém a duração de 250 ms.
+- Adiciona o mesmo fade-in ao fundo do dock na saída do Overview invisível.
+- Mantém blur e transparência até o fim do fechamento dos menus, acompanhando sua opacidade nativa.
+- Verifica o alpha e o blur nos pixels de diálogos e seletores Alt+Tab.
+- Descobre as prévias de janelas criadas tardiamente pelo Alt+Tab e aplica seus efeitos.
+- Corrige o recorte de blur nas capturas fullscreen quando a escala de captura difere da escala do monitor.
+- Sincroniza a captura das preferências com seu fechamento no teste isolado.
+
 ## 0.3.1 — 2026-11-11
 
 - Remove a camada de framebuffer do dock quando somente a transparência está ativa.

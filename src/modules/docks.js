@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
+import Clutter from 'gi://Clutter';
+import Meta from 'gi://Meta';
+import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Signals} from '../core/render/signals.js';
 import {ResourceScope} from '../core/utils.js';
@@ -15,17 +18,52 @@ export default class DocksModule {
 
     enable() {
         this.active = true;
+        this.overviewActive = Main.overview.visible;
+        this.fade = new St.Adjustment({actor: Main.uiGroup, lower: 0, upper: 1,
+            value: this._invisible() ? 0 : 1});
+        this.signals.connect(this.fade, 'notify::value', () => {
+            for (const {binding} of this.records.values())
+                binding.surface?.setFade(this.fade.value);
+        });
         this.scan = this.scope.debounce(this.settings.get_int('resize-debounce-ms'), () => this._scan());
         this.signals.connect(Main.uiGroup, childSignal(Main.uiGroup), this.scan);
         this.signals.connect(Main.extensionManager, 'extension-state-changed', this.scan);
         this.signals.connect(Main.layoutManager, 'monitors-changed', this.scan);
-        this.signals.connect(Main.overview, 'showing', () => this.sync());
-        this.signals.connect(Main.overview, 'hidden', () => this.sync());
+        this.signals.connect(Main.overview, 'showing', () => {
+            this.overviewActive = true;
+            this.fade.remove_transition('value');
+            this.fade.value = this._invisible() ? 0 : 1;
+            this.sync();
+        });
+        this.signals.connect(Main.overview, 'hiding', () => this._startReturn());
+        this.signals.connect(Main.overview, 'hidden', () => {
+            // Dock themes also update at the end of Overview. Commit after
+            // their handlers, preserving the current fade rather than restarting.
+            if (this._returnLater)
+                global.compositor.get_laters().remove(this._returnLater);
+            this._returnLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+                this._returnLater = 0;
+                if (this.active && !this.overviewActive)
+                    this.sync();
+                return false;
+            });
+        });
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
             if (key.startsWith('dock-') || key.startsWith('blur-') || key === 'update-frequency')
                 this.sync();
         });
         this._scan();
+        if (this.overviewActive && !Main.overview.visibleTarget)
+            this._startReturn();
+    }
+
+    _startReturn() {
+        this.overviewActive = false;
+        this.fade.remove_transition('value');
+        this.fade.value = this.settings.get_boolean('dock-invisible-overview') ? 0 : 1;
+        this.sync();
+        if (this.fade.value < 1)
+            this.fade.ease(1, {duration: 250, mode: Clutter.AnimationMode.EASE_IN_OUT_CUBIC});
     }
 
     _scan() {
@@ -53,7 +91,7 @@ export default class DocksModule {
     }
 
     _invisible() {
-        return this.settings.get_boolean('dock-invisible-overview') && Main.overview.visible;
+        return this.settings.get_boolean('dock-invisible-overview') && this.overviewActive;
     }
 
     _watch(actor, box) {
@@ -70,11 +108,13 @@ export default class DocksModule {
             settings: this.settings, logger: this.logger,
             enabled: () => this.active && !this._invisible(),
             options: {dock: true, opacity: () => this.settings.get_double('dock-opacity'),
-                blur: () => this.settings.get_boolean('dock-blur')},
+                blur: () => this.settings.get_boolean('dock-blur'), fade: () => this.fade.value},
         });
     }
 
     sync() {
+        if (this.overviewActive)
+            this.fade.value = this._invisible() ? 0 : 1;
         for (const record of this.records.values()) {
             if (this._invisible()) {
                 record.binding.sync();
@@ -99,7 +139,13 @@ export default class DocksModule {
 
     disable() {
         this.active = false;
+        if (this._returnLater)
+            global.compositor.get_laters().remove(this._returnLater);
+        this._returnLater = 0;
+        this.fade?.remove_transition('value');
         this.signals.clear();
+        this.fade?.run_dispose();
+        this.fade = null;
         this.scope.dispose();
         for (const actor of this.records.keys())
             this._drop(actor);

@@ -35,11 +35,11 @@ export default class BlurModule {
         this.sync();
     }
 
-    _bind(identity, box, anchor, key, menu = null) {
+    _bind(identity, box, anchor, key, menu = null, options = {}) {
         if (!box || !anchor?.get_parent() || this.bindings.has(identity))
             return;
         const binding = new SurfaceBinding({
-            box, anchor, menu, settings: this.settings, logger: this.logger,
+            box, anchor, menu, options, settings: this.settings, logger: this.logger,
             enabled: () => this.active && !Main.sessionMode.isLocked &&
                 this.settings.get_boolean(key),
             onDestroy: () => this.bindings.delete(identity),
@@ -65,8 +65,14 @@ export default class BlurModule {
                 this._bind(actor, actor.dialogLayout?._dialog ?? actor.dialogLayout, actor, 'blur-dialogs');
             else if (name.includes('AppFolderDialog'))
                 this._bind(actor, actor._viewBox, actor, 'blur-folders');
-            else if (name.includes('SwitcherPopup'))
+            else if (name.includes('SwitcherPopup')) {
                 this._bind(actor, actor._switcherList, actor, 'blur-alt-tab');
+                // AppSwitcher creates its window previews after a delay, once
+                // the main app list is already mapped.
+                if (actor._thumbnails)
+                    this._bind(actor._thumbnails, actor._thumbnails, actor, 'blur-alt-tab', null,
+                        {allowSiblingGaps: true});
+            }
             else if (name.includes('OsdWindow'))
                 this._bind(actor, actor._hbox, actor, 'blur-osd');
             else if (name.includes('ScreenshotUI'))
@@ -78,6 +84,8 @@ export default class BlurModule {
         };
         // Root actors can be inserted before their constructor builds children.
         signals.connect(actor, 'notify::mapped', inspect);
+        if (actor.constructor.name.includes('SwitcherPopup'))
+            signals.connect(actor, childSignal(actor), inspect);
         inspect();
     }
 
