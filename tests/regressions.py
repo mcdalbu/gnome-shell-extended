@@ -141,6 +141,8 @@ def run_dock(evaluate, wait, check, screenshot, results, root, output, variant, 
         # Overview handlers, instead of relying only on the synthetic fixture.
         evaluate("cfg.set_boolean('dock-invisible-overview',true);pointer.notify_absolute_motion(GLib.get_monotonic_time(),Main.layoutManager.primaryMonitor.width/2,Main.layoutManager.primaryMonitor.height-1)")
         wait('realDock.dockState===2')
+        if os.environ.get('GSE_TEST_DOCK_BOTTOM'):
+            test_dock_bottom(evaluate, wait, screenshot, results, output, variant)
         evaluate("""globalThis.realDockFadeOutFrames=[];
             globalThis.dockFadeOutProbe=global.stage.connect('after-paint',()=>{
                 const module=ext._manager._slots.get('docks').instance;
@@ -312,3 +314,43 @@ def test_system_dialogs(evaluate, wait, check, screenshot, results, output, vari
         evaluate('systemDialog.cancel()')
         wait('!systemDialog.mapped')
         check(name+'-surface-released', f'!bindingFor({box})?.surface')
+
+
+def test_dock_bottom(evaluate, wait, screenshot, results, output, variant):
+    import gi
+    gi.require_version('GdkPixbuf', '2.0')
+    from gi.repository import GdkPixbuf
+    evaluate("globalThis.dockBottomSaved=[cfg.get_string('blur-backend'),cfg.get_int('blur-radius'),cfg.get_double('blur-brightness'),cfg.get_double('dock-opacity')];scene.show();cfg.set_double('dock-opacity',0.15);cfg.set_double('blur-brightness',1)")
+    for backend in ['native', 'auto']:
+        evaluate(f"cfg.set_string('blur-backend','{backend}');cfg.set_int('blur-radius',24)")
+        wait("ext._manager._slots.get('docks').instance.records.get(realDock).binding.surface?.backend")
+        time.sleep(0.3)
+        name='dock-bottom-'+backend
+        screenshot(name+'-blurred')
+        rect=evaluate('(()=>{const b=realDock.dash._background;return [...b.get_transformed_position(),...b.get_transformed_size()]})()')
+        geometry=evaluate("(()=>{const s=ext._manager._slots.get('docks').instance.records.get(realDock).binding.surface;const clips=[];for(let a=s.box;a;a=a.get_parent())if(a.has_clip||a.clip_to_allocation)clips.push({name:a.constructor.name,clip:a.has_clip?a.get_clip():null,size:[a.width,a.height],allocation:a.clip_to_allocation});return {rect:[...s.box.get_transformed_position(),...s.box.get_transformed_size()],backend:s.backend.name,captures:[...s._state.captures.values()].map(c=>({bounds:c.geometry.split(':').slice(0,4).map(Number),view:[Math.round(c.view.layout.width*c.view.get_scale()),Math.round(c.view.layout.height*c.view.get_scale())]})),clips}})()")
+        results[name+'-geometry']=geometry
+        for capture in geometry['captures']:
+            left,top,right,bottom=capture['bounds']
+            assert 0<=left<right<=capture['view'][0] and 0<=top<bottom<=capture['view'][1], capture
+        evaluate("cfg.set_int('blur-radius',0)")
+        time.sleep(0.3)
+        screenshot(name+'-sharp')
+        def bands(suffix):
+            image=GdkPixbuf.Pixbuf.new_from_file(str(output/f'{variant}-{name}-{suffix}.png'))
+            data,stride,channels=image.get_pixels(),image.get_rowstride(),image.get_n_channels()
+            scale=image.get_width()/evaluate('global.stage.width')
+            x,y,w,h=rect
+            answer={}
+            for band,top in [('top',y+5),('bottom',y+h-8)]:
+                points=[tuple(data[row*stride+col*channels+c] for c in range(3))
+                        for row in range(round(top*scale),round((top+3)*scale))
+                        for col in range(round((x+35)*scale),round((x+w-35)*scale))]
+                mean=[sum(p[c] for p in points)/len(points) for c in range(3)]
+                answer[band]=math.sqrt(sum(sum((p[c]-mean[c])**2 for c in range(3)) for p in points)/len(points))
+            return answer
+        blurred,sharp=bands('blurred'),bands('sharp')
+        results[name+'-contrast']={'blurred':blurred,'sharp':sharp}
+        assert all(blurred[band]<sharp[band]*0.85 for band in sharp), results[name+'-contrast']
+        assert abs(blurred['bottom']/sharp['bottom']-blurred['top']/sharp['top'])<0.05, results[name+'-contrast']
+    evaluate("scene.hide();cfg.set_string('blur-backend',dockBottomSaved[0]);cfg.set_int('blur-radius',dockBottomSaved[1]);cfg.set_double('blur-brightness',dockBottomSaved[2]);cfg.set_double('dock-opacity',dockBottomSaved[3])")

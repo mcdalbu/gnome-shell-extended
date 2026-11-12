@@ -1,6 +1,6 @@
-# Validação — Gnome Shell Extended 0.3.3
+# Validação — Gnome Shell Extended 0.3.4
 
-Data: 11 de novembro de 2026, America/Fortaleza.
+Data: 12 de novembro de 2026, America/Fortaleza.
 
 ## Ambiente
 
@@ -14,7 +14,7 @@ CSS/launcher do Configurações e perfis Ptyxis.
 
 ## Regressões verificadas
 
-Evidências da versão 0.3.3: `validation/flicker-results.json` e
+Evidências da versão 0.3.4: `validation/flicker-blur-results.json` e
 `validation/flicker-blur-multi-results.json`. As evidências locais ficam fora
 do pacote e do Git por conterem dados da sessão de teste.
 
@@ -161,6 +161,34 @@ A execução final a 100% também passou: barra 39,33 → 19,87; desligar/reinic
 assíncrono para não bloquear o compositor durante a substituição dos PNGs e
 não mistura screenshots adicionais com o probe dos frames nativos do dock.
 
+## Faixa inferior do dock (0.3.4)
+
+O teste adicional abre o dock real sobre faixas de cor e compara separadamente
+três linhas da margem superior e três da inferior, com blur de raio 24 e sem
+blur. Os backends `native` e `auto` são exercitados. Além da redução de
+contraste em ambas as margens, a diferença entre suas razões de contraste
+com/sem blur deve ficar abaixo de 0,05. Cada retângulo de captura deve caber
+inteiramente no framebuffer de sua view.
+
+Na reprodução a 100%, o dock ocupou y=916..996 em um monitor de altura 1000.
+A captura antiga ia de y=832 a 1152, ultrapassando a tela. O desvio de cor da
+margem inferior foi 20,22, contra 17,92 na superior. Com a captura deslocada
+para y=680..1000 e a mesma altura de 320 pixels, a margem inferior caiu para
+17,89, mantendo a superior em 17,92. Sem blur, as margens mediram 30,77 e
+30,89. A diferença entre as razões passou de 0,077 para 0,0013. O backend
+automático selecionou a biblioteca opcional e apresentou os mesmos resultados.
+Essas métricas descrevem a cena sintética; não são um benchmark geral.
+
+Na configuração de views a 125%/150%, a captura da view primária ficou em
+y=424..1000, dentro do framebuffer de altura 1000. As duas margens mediram
+20,23 com blur e 30,76 sem blur, para ambos os backends. A sessão completa
+terminou com `passed: true`, incluindo hover/intellihide, fades, diálogos,
+painel, restauração de estilos e dez ciclos enable/disable.
+
+A correção usa o mesmo limite por view nos quatro lados da tela e mantém o
+tamanho das texturas durante o deslocamento. O teste não grava screenshots
+enquanto o probe de intellihide mede os frames nativos.
+
 ## Limites
 
 Não foram executados GNOME 45–50, Ubuntu Dock, Dash to Dock upstream ou
@@ -175,8 +203,8 @@ constitui medição de economia de recursos.
 ```sh
 make test
 make build
-env GSE_TEST_REGRESSIONS=1 GSE_TEST_FLICKER=1 /usr/bin/python3 tests/headless.py
-env GSE_TEST_REGRESSIONS=1 GSE_TEST_FLICKER=1 GSE_TEST_FLICKER_BLUR=1 GSE_TEST_MULTI=1 /usr/bin/python3 tests/headless.py
+env GSE_TEST_REGRESSIONS=1 GSE_TEST_FLICKER=1 GSE_TEST_FLICKER_BLUR=1 GSE_TEST_DOCK_BOTTOM=1 /usr/bin/python3 tests/headless.py
+env GSE_TEST_REGRESSIONS=1 GSE_TEST_FLICKER=1 GSE_TEST_FLICKER_BLUR=1 GSE_TEST_DOCK_BOTTOM=1 GSE_TEST_MULTI=1 /usr/bin/python3 tests/headless.py
 make zip
 ```
 

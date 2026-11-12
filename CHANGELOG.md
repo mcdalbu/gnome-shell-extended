@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.4 — 2026-11-12
+
+- Corrige a perda de intensidade do blur na faixa inferior do dock.
+- Mantém os retângulos de captura dentro do framebuffer de cada monitor, deslocando-os sem reduzir suas dimensões durante o movimento.
+- Adiciona comparação de pixels entre as faixas superior e inferior do dock, com backend nativo e automático.
+
 ## 0.3.3 — 2026-11-11
 
 - Inclui bordas e sombras no fade de entrada e saída do fundo do dock.

@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **0.3.3**.
+preferências GTK4/Libadwaita. Versão **0.3.4**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -33,6 +33,14 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
+
+## Correções da versão 0.3.4
+
+- Corrige o blur mais fraco na faixa inferior do dock junto ao limite da tela.
+  A captura é deslocada para dentro do framebuffer do monitor, preservando
+  suas dimensões durante o movimento em vez de ler pixels fora da tela.
+- O teste compara separadamente as faixas superior e inferior do dock real,
+  com os backends nativo e automático, e verifica os limites de cada captura.
 
 ## Correções da versão 0.3.3
 

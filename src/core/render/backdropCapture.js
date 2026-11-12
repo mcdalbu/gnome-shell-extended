@@ -81,8 +81,8 @@ export function syncBackdropCapture(state, view, backend, radiusProperty, radius
     const steps = Math.max(0, Math.ceil(Math.log2(Math.max(1, physicalRadius / 12))));
     const tile = Math.max(64, 2 ** steps);
     const padding = Math.ceil(3 * radius * scale);
-    const left = Math.floor(((x - layout.x) * scale - padding) / tile) * tile;
-    const top = Math.floor(((y - layout.y) * scale - padding) / tile) * tile;
+    const gridLeft = Math.floor(((x - layout.x) * scale - padding) / tile) * tile;
+    const gridTop = Math.floor(((y - layout.y) * scale - padding) / tile) * tile;
     // Reserve an extra tile for the offset from the window to the grid.
     // Constant capture dimensions prevent backend downscale thresholds
     // and FBO allocations from changing while a window only moves.
@@ -90,8 +90,19 @@ export function syncBackdropCapture(state, view, backend, radiusProperty, radius
     // Give thin panels and large windows the same radius-driven sampling
     // resolution, rather than letting their shapes choose the filter.
     const minimum = steps ? 256 * 2 ** (steps - 1) + tile : tile;
-    const right = left + Math.max(minimum, (Math.ceil((width * scale + 2 * padding) / tile) + 1) * tile);
-    const bottom = top + Math.max(minimum, (Math.ceil((height * scale + 2 * padding) / tile) + 1) * tile);
+    const viewWidth = Math.round(layout.width * scale);
+    const viewHeight = Math.round(layout.height * scale);
+    const captureWidth = Math.min(viewWidth,
+        Math.max(minimum, (Math.ceil((width * scale + 2 * padding) / tile) + 1) * tile));
+    const captureHeight = Math.min(viewHeight,
+        Math.max(minimum, (Math.ceil((height * scale + 2 * padding) / tile) + 1) * tile));
+    // BACKGROUND blits must stay inside the source framebuffer. Shift a
+    // constant-sized capture inward at screen edges instead of sampling past
+    // the bottom/right edge or shrinking its texture as the dock slides.
+    const left = Math.max(0, Math.min(gridLeft, viewWidth - captureWidth));
+    const top = Math.max(0, Math.min(gridTop, viewHeight - captureHeight));
+    const right = left + captureWidth;
+    const bottom = top + captureHeight;
     const geometry = `${left}:${top}:${right}:${bottom}:${x}:${y}:${scaleX}:${scaleY}:${scale}`;
     if (capture.geometry === geometry)
         return;
