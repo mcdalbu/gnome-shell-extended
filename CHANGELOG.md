@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.6 — 2026-11-12
+
+- Inicia o fade de retorno da barra após o Overview fechar, em vez de concluí-lo durante o fechamento.
+- Revela a transparência em 250 ms a partir da cor opaca do Overview, sem salto no primeiro frame do desktop.
+- Mistura fundo e primeiro plano por cor, preservando a opacidade dos textos e ícones, sem criar ator/texture de cobertura.
+- Mantém o painel suspenso enquanto o Overview fecha, inclusive quando o módulo foi ativado com ele já aberto.
+- Substitui a regressão com fundo artificial por medição de pixels com o fundo real do Overview e tempo contado após hidden.
+
 ## 0.3.5 — 2026-11-12
 
 - Faz blur, brilho e cor do painel acompanharem o fade de 250 ms ao entrar e sair do Overview.

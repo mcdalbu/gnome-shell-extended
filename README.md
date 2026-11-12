@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **0.3.5**.
+preferências GTK4/Libadwaita. Versão **0.3.6**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -33,6 +33,19 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
+
+## Correções da versão 0.3.6
+
+- O retorno da transparência da barra começa **depois que o Overview fecha**.
+  Durante o fechamento, o estilo personalizado fica suspenso. No desktop,
+  a barra passa da cor opaca do fundo do Overview para sua cor/transparência
+  configurada ao longo de 250 ms, preservando a continuidade do primeiro frame.
+- A mistura é feita no próprio estilo de fundo, sem textura de tela inteira,
+  ator de cobertura ou mudança da opacidade dos textos e ícones.
+- A validação usa o fundo real do Overview e mede os frames imediatamente
+  anteriores e posteriores ao desaparecimento dele. O teste anterior com uma
+  fonte colocada acima desse fundo mascarava essa mudança de entrada.
+- Mantém as correções de blur, contorno e faixa inferior do dock.
 
 ## Correções da versão 0.3.5
 

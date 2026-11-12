@@ -35,7 +35,7 @@ export default class PanelModule {
         this.signals.connect(this.fade, 'notify::value', () => this._applyAppearance());
         this.binding = new SurfaceBinding({box: this.panel, anchor: Main.layoutManager.panelBox,
             settings: this.settings, logger: this.logger,
-            enabled: () => !this.disabled && (!this.overviewActive || this.overviewOpening) &&
+            enabled: () => !this.disabled && !this.returnPending && (!this.overviewActive || this.overviewOpening) &&
                 this.settings.get_boolean('panel-blur') && this.settings.get_boolean('blur-enabled') &&
                 this.settings.get_int('blur-radius') > 0 && this.settings.get_string('blur-backend') !== 'off' &&
                 (this.appearance?.alpha ?? 1) < 1,
@@ -59,10 +59,10 @@ export default class PanelModule {
         this.signals.connect(Main.layoutManager, 'monitors-changed', this.queue);
         this.signals.connect(Main.overview, 'showing', () => this._suspendForOverview());
         this.signals.connect(Main.overview, 'shown', () => this._finishSuspend());
-        this.signals.connect(Main.overview, 'hiding', () => this._startReturn());
+        this.signals.connect(Main.overview, 'hiding', () => this._prepareReturn());
         this.signals.connect(Main.overview, 'hidden', () => this._returnFromOverview());
         if (this.overviewClosing)
-            this._startReturn();
+            this._prepareReturn();
         else
             this.sync(true);
     }
@@ -75,6 +75,7 @@ export default class PanelModule {
     }
 
     _suspendForOverview() {
+        this.openingAppearance = this.renderedAppearance ?? this.appearance;
         this.overviewActive = true;
         this.overviewOpening = true;
         this.overviewClosing = false;
@@ -83,6 +84,11 @@ export default class PanelModule {
         this._returnLater = 0;
         this.fade.remove_transition('value');
         this.returning = false;
+        this.returnPending = false;
+        // Preserve the current rendered tint when reversing a desktop reveal.
+        // The opening fade then starts at that exact color/alpha, not the
+        // normal panel target multiplied by a different progress value.
+        this.fade.value = 1;
         this._track(false);
         this.fade.ease(0, {duration: 250, mode: Clutter.AnimationMode.EASE_IN_OUT_CUBIC,
             onComplete: () => this._finishSuspend()});
@@ -92,21 +98,37 @@ export default class PanelModule {
         if (this.disabled || !this.overviewActive)
             return;
         this.overviewOpening = false;
+        this.openingAppearance = null;
         this.fade.remove_transition('value');
         this.fade.value = 0;
         this._restoreAppearance();
     }
 
-    _startReturn() {
+    _prepareReturn() {
+        const background = Main.layoutManager.overviewGroup.get_theme_node().get_background_color();
+        const foreground = this.panel.get_theme_node().get_foreground_color();
+        this.overviewColor = [background.red, background.green, background.blue];
+        this.overviewForeground = [foreground.red, foreground.green, foreground.blue];
         this.overviewActive = false;
         this.overviewOpening = false;
         this.overviewClosing = true;
-        this.returning = true;
+        this.returnPending = true;
+        this.returning = false;
         this.fade.remove_transition('value');
+        this.fade.value = 0;
+        this._track(false);
+        this._applyAppearance();
+        this.binding.sync();
+    }
+
+    _startReturn() {
+        this.returnPending = false;
+        this.returning = true;
+        this.fade.value = 0;
         this.sync(true);
-        // Match the legacy transition: return during Overview's closing
-        // animation, not an additional delay after it has already closed.
-        this.fade.ease(1, {duration: 250, mode: Clutter.AnimationMode.EASE_IN_OUT_CUBIC,
+        // The Overview backdrop is gone now. Reveal the desktop by fading its
+        // opaque color into the configured translucent tint over a full 250ms.
+        this.fade.ease(1, {duration: 250, mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => {
                 this.returning = false;
                 this._applyAppearance();
@@ -118,23 +140,52 @@ export default class PanelModule {
         this.overviewClosing = false;
         if (this._returnLater)
             global.compositor.get_laters().remove(this._returnLater);
-        // Shell resets Main.panel.style after emitting hidden. Reapply the
-        // current fade value after that handler, without restarting the fade.
+        // Shell resets Main.panel.style after emitting hidden. Start the
+        // desktop reveal after that cleanup, once its backdrop is gone.
         this._returnLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
             this._returnLater = 0;
             if (this.disabled || this.overviewActive || Main.overview.visible)
                 return false;
-            this.sync(true);
+            if (!this.returnPending) {
+                this.sync(true);
+                return false;
+            }
+            this._startReturn();
             return false;
         });
     }
 
     _applyAppearance() {
-        if (this.disabled || (this.overviewActive && !this.overviewOpening) || !this.appearance)
+        if (this.disabled || (this.overviewActive && !this.overviewOpening))
             return;
-        const {color, foreground, alpha} = this.appearance;
-        const visibleAlpha = alpha * this.fade.value;
-        this.style.set(`background-color: rgba(${color.join(',')},${visibleAlpha}); color: ${foreground}; background-image: none; transition-duration: ${this.returning ? 0 : 150}ms;`);
+        if (this.returnPending) {
+            this.style.set('background-color: transparent; background-image: none; transition-duration: 0ms;');
+            for (const style of this.foregrounds.values())
+                style.restore();
+            return;
+        }
+        if (!this.appearance)
+            return;
+        let {color, foreground, alpha} = this.overviewOpening && this.openingAppearance
+            ? this.openingAppearance : this.appearance;
+        const progress = this.fade.value;
+        let visibleAlpha = alpha * progress;
+        if (this.returning) {
+            // Premultiplied composition of an opaque Overview-color cover
+            // over the final tint. This preserves the visible starting color
+            // without an extra actor, texture or a faded foreground layer.
+            visibleAlpha = 1 - (1 - alpha) * progress;
+            color = color.map((c, i) => Math.round(((1 - progress) * this.overviewColor[i] +
+                progress * alpha * c) / Math.max(visibleAlpha, 1 / 255)));
+            const target = this.appearance.foreground.slice(1).match(/../g).map(c => parseInt(c, 16));
+            foreground = `rgb(${target.map((c, i) => Math.round(this.overviewForeground[i] *
+                (1 - progress) + c * progress)).join(',')})`;
+        }
+        this.currentForeground = foreground;
+        this.renderedAppearance = {color, foreground, alpha: visibleAlpha};
+        this.style.set(`background-color: rgba(${color.join(',')},${visibleAlpha}); color: ${foreground}; background-image: none; transition-duration: ${this.returning || this.overviewOpening ? 0 : 150}ms;`);
+        for (const style of this.foregrounds.values())
+            style.set(`color: ${foreground};`);
         this.binding?.surface?.setFade(this.fade.value);
     }
 
@@ -181,6 +232,11 @@ export default class PanelModule {
         try {
             if (themeChanged)
                 this.color = null;
+            if (this.returnPending) {
+                this._applyAppearance();
+                this.binding.sync();
+                return;
+            }
             if ((this.overviewActive || (Main.overview.visible && !this.overviewClosing)) && !this.overviewOpening) {
                 this._restoreAppearance();
                 this._track(false);
@@ -225,7 +281,7 @@ export default class PanelModule {
                     }
                     // The native panel-button rule supplies its own color,
                     // overriding the color inherited from the panel itself.
-                    this.foregrounds.get(actor).set(`color: ${foreground};`);
+                    this.foregrounds.get(actor).set(`color: ${this.currentForeground ?? foreground};`);
                     return;
                 }
                 if (depth > 0) {
@@ -266,5 +322,7 @@ export default class PanelModule {
         this.foregrounds.clear();
         this.interface = null;
         this.appearance = null;
+        this.renderedAppearance = null;
+        this.openingAppearance = null;
     }
 }

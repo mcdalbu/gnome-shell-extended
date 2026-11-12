@@ -1,4 +1,4 @@
-# Validação — Gnome Shell Extended 0.3.5
+# Validação — Gnome Shell Extended 0.3.6
 
 Data: 12 de novembro de 2026, America/Fortaleza.
 
@@ -14,7 +14,7 @@ CSS/launcher do Configurações e perfis Ptyxis.
 
 ## Regressões verificadas
 
-Evidências da versão 0.3.5: `validation/flicker-results.json` e
+Evidências da versão 0.3.6: `validation/flicker-results.json` e
 `validation/flicker-blur-multi-results.json`. As evidências locais ficam fora
 do pacote e do Git por conterem dados da sessão de teste.
 
@@ -211,6 +211,35 @@ por frame durante essa animação. O backend ainda pode escolher sua resolução
 interna conforme o raio efetivo. Na entrada do Overview, a transição é feita
 no sentido inverso; ao ficar totalmente aberto, o estilo nativo é restaurado
 e as capturas são liberadas. Interromper a animação mantém o valor atual.
+
+## Retorno visível após fechar o Overview (0.3.6)
+
+A 0.3.5 foi testada sobre uma fonte acima do fundo do Overview. Esse teste
+isolava o raio do blur, mas mascarava a troca de entrada quando o Overview
+sumia. A regressão agora mantém o fundo real e conta o tempo a partir de
+`hidden`. Com a versão antiga, o primeiro frame do desktop já tinha progresso
+1 e alpha 171 (67%), cerca de 4 ms após hidden; não havia fade restante no
+desktop.
+
+A correção mantém o painel personalizado suspenso durante `hiding`. Após
+`hidden` e a limpeza de estilo do Shell, mistura por 250 ms uma cobertura
+opaca da cor do Overview com a transparência final. A composição é feita no
+próprio RGBA do painel, sem ator ou textura adicionais. O primeiro plano
+mantém a opacidade 255. O dock conserva sua animação própria durante o
+fechamento; a barra só inicia a revelação após ele.
+
+O novo teste exige continuidade RGB entre o último frame do Overview e o
+primeiro do desktop (diferença inferior a quatro níveis), alpha inicial de
+pelo menos 250, valores intermediários já no desktop e alpha final 171 em
+200–400 ms após hidden. Também verifica o modo em que o painel é ativado com
+o Overview já aberto e a interrupção por reabertura.
+
+Na execução a 100%, os dois lados da troca mediram RGB (34,34,38). O primeiro
+frame do desktop teve alpha 255 e progresso zero, cerca de 8 ms após hidden.
+Aos 43/52/70/86 ms, o alpha passou por 244/235/225/216, chegando a 171 em
+aproximadamente 271 ms (250 ms configurados mais a cadência de apresentação).
+A sessão completa passou, incluindo limpeza e zero frames em repouso na
+amostra. Estes valores são específicos dessa execução.
 
 ## Limites
 

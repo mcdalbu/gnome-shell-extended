@@ -12,8 +12,8 @@
     "50",
     "51"
   ],
-  "version": 8,
-  "version-name": "0.3.5",
+  "version": 9,
+  "version-name": "0.3.6",
   "settings-schema": "org.gnome.shell.extensions.gnome-shell-extended",
   "session-modes": [
     "user",
