@@ -89,7 +89,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             'No Overview, o estilo personalizado é suspenso. Após o Overview fechar, o fundo passa da cor opaca do Overview à transparência configurada em 250 ms; textos e ícones permanecem opacos.');
         choice(panelOptions, 'panel-style', 'Cor do fundo', ['theme', 'light', 'dark'], ['Do tema', 'Clara', 'Escura']);
         toggle(panelOptions, 'panel-blur', 'Blur no fundo da barra', 'Usa os parâmetros da aba Blur. Suspenso no Overview e quando o fundo está opaco.');
-        toggle(panelOptions, 'panel-remove-gap', 'Remover lacuna entre a barra e janelas maximizadas', 'Ajusta o espaço reservado à barra para que a janela encoste na borda inferior, sem aumentar o painel.');
+        toggle(panelOptions, 'panel-remove-gap', 'Remover lacuna entre a barra e janelas maximizadas', 'Posiciona o topo da janela 1 px sob a borda inferior da barra para fechar a junção, sem aumentar o painel.');
         toggle(panelOptions, 'panel-auto-opacity', 'Opacidade automática', 'Considera as janelas do workspace no monitor da barra.');
         number(panelOptions, 'panel-opacity', 'Opacidade normal', 0, 1, 0.05);
         number(panelOptions, 'panel-maximized-opacity', 'Com janela maximizada', 0, 1, 0.05);
@@ -127,7 +127,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         toggle(appOptions, 'opacity-gtk-settings-sidebar', 'Barra lateral do Configurações',
             'Adiciona uma classe CSS via overlay do recurso CcWindow e lançador D-Bus reversível do usuário. Requer gresource e reinício do aplicativo.');
 
-        const maintenance = group(blur, 'Gnome Shell Extended 0.3.8', 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
+        const maintenance = group(blur, 'Gnome Shell Extended 0.3.9', 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
         const reset = new Adw.ActionRow({title: 'Restaurar configurações da extensão'});
         const button = new Gtk.Button({label: 'Restaurar', valign: Gtk.Align.CENTER});
         button.connect('clicked', () => {

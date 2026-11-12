@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.9 — 2026-11-12
+
+- Fecha a junção também quando o painel e sua reserva já têm a mesma altura.
+- A opção de remover lacuna coloca o topo da janela maximizada 1 pixel lógico sob a borda inferior da barra; o painel mantém sua altura original.
+- Adiciona regressão com reserva nativa, além do caso de espaçamento excessivo do tema.
+
 ## 0.3.8 — 2026-11-12
 
 - Substitui a extensão visual de 1 px por **Remover lacuna entre a barra e janelas maximizadas**.

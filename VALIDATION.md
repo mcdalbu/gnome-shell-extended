@@ -1,4 +1,4 @@
-# Validação — Gnome Shell Extended 0.3.8
+# Validação — Gnome Shell Extended 0.3.9
 
 Data: 12 de novembro de 2026, America/Fortaleza.
 
@@ -15,11 +15,11 @@ CSS/launcher do Configurações e perfis Ptyxis.
 ## Remoção da lacuna entre painel e janela maximizada
 
 - Suíte headless completa em escala 100% e dois monitores com 125%/150%: PASS.
-- O tema padrão medido reserva exatamente a altura do painel (32 px); nesse caso a opção não altera a reserva.
-- Fixture de tema com `padding-bottom: 1px` no panelBox reproduz uma reserva de 33 px para painel de 32 px. Com a opção ativa, a janela maximizada real começa em y=32, sem alterar o tamanho do painel ou adicionar faixa pintada.
+- Regressão nova: com painel e reserva nativa de 32 px, a janela real passa de y=32 para y=31, mantendo o painel em 32 px. Essa situação não era corrigida pela versão 0.3.8.
+- Fixture de tema com `padding-bottom: 1px` no panelBox reproduz uma reserva de 33 px para painel de 32 px. Com a opção ativa, a janela maximizada real começa em y=31, sem alterar o tamanho do painel ou adicionar faixa pintada.
 - Desativar restaura a reserva e o posicionamento originais. A geometria das janelas normais é preservada.
 - Desativar o módulo restaura a reserva nativa e remove o ator transparente de reserva. Preferências, demais superfícies e dez ciclos de ativação/desativação: PASS.
-- Evidências: `validation/single-results.json` e `validation/single-panel-gap-maximized.png`. A lacuna do desktop do usuário ainda precisa ser conferida após carregar a atualização; este teste cobre reserva excessiva, não bordas desenhadas pelo aplicativo.
+- Evidências: `validation/single-results.json` e `validation/single-panel-gap-maximized.png`. A lacuna do desktop do usuário ainda precisa ser conferida após carregar a atualização; o teste confirma sobreposição de 1 px na junção, não a reprodução exata do aplicativo da imagem enviada.
 
 ## Regressões verificadas
 

@@ -205,7 +205,7 @@
     <key name="panel-remove-gap" type="b">
       <default>false</default>
       <summary>Remove the gap between the panel and maximized windows</summary>
-      <description>Reserves space only up to the painted bottom edge of the panel, rounding down to logical pixels. Maximized windows meet the panel without extending its background.</description>
+      <description>Reserves space up to one logical pixel inside the painted bottom edge of the panel, rounding down. This closes seams even when the panel and its reservation have equal heights, without extending the panel background.</description>
     </key>
     <key name="panel-blur" type="b">
       <default>true</default>

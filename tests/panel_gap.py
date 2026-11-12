@@ -12,15 +12,22 @@ def test_panel_gap(evaluate, wait, check, screenshot, results):
         cfg.set_boolean('panel-remove-gap',false);''')
     time.sleep(0.2)
     results['panel-gap-native'] = evaluate('gapGeometry()')
+    evaluate('globalThis.gapNative=gapGeometry();cfg.set_boolean("panel-remove-gap",true);')
+    wait('(()=>{const g=gapGeometry();return g.frame.y===Math.floor(g.panel[1]+g.panel[3]+1e-6)-1;})()')
+    results['panel-gap-native-corrected'] = evaluate('gapGeometry()')
+    check('panel-gap-equal-height-reservation-corrected',
+          'gapGeometry().frame.y===Math.floor(gapNative.panel[1]+gapNative.panel[3]+1e-6)-1 && gapGeometry().panel.every((v,i)=>v===gapNative.panel[i])')
+    evaluate('cfg.set_boolean("panel-remove-gap",false);')
+    wait('policyWindow.get_frame_rect().y===gapNative.frame.y')
     # Reproduce a theme reserving an extra row below the actual panel. This
     # fixture changes the reservation, not the maximized window's coordinates.
     evaluate("Main.layoutManager.panelBox.set_style('padding-bottom:1px;');")
     wait('(()=>{const g=gapGeometry();return g.frame.y>Math.floor(g.panel[1]+g.panel[3]+1e-6);})()')
     evaluate('globalThis.gapBefore=gapGeometry();cfg.set_boolean("panel-remove-gap",true);')
-    wait('(()=>{const g=gapGeometry();return g.frame.y===Math.floor(g.panel[1]+g.panel[3]+1e-6);})()')
+    wait('(()=>{const g=gapGeometry();return g.frame.y===Math.floor(g.panel[1]+g.panel[3]+1e-6)-1;})()')
     results['panel-gap-corrected'] = evaluate('gapGeometry()')
     check('panel-gap-window-meets-panel',
-          '(()=>{const g=gapGeometry();return g.frame.y===g.area.y && g.frame.y<=g.panel[1]+g.panel[3] && g.panel[1]+g.panel[3]-g.frame.y<1;})()')
+          '(()=>{const g=gapGeometry();const overlap=g.panel[1]+g.panel[3]-g.frame.y;return g.frame.y===g.area.y && overlap>=1 && overlap<2;})()')
     check('panel-gap-panel-not-extended', 'gapGeometry().panel.every((v,i)=>v===gapBefore.panel[i])')
     check('panel-gap-no-painted-extension', "!Main.uiGroup.get_children().some(a=>a.name==='gse-panel-bottom-extension')")
     screenshot('panel-gap-maximized')

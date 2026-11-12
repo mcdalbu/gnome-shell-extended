@@ -6,8 +6,9 @@ import {Signals} from './render/signals.js';
 
 // Shell reserves the rounded panelBox bounds, which can include theme spacing
 // or an extra logical pixel after fractional allocation. Replace only that
-// reservation with the panel's painted edge; Mutter then lays out maximized
-// windows normally. No window actors or panel backgrounds are stretched.
+// reservation with one ending a logical pixel inside the panel's painted edge.
+// The small overlap also closes seams when panelBox already matches the panel.
+// Mutter lays out the windows normally; the panel keeps its original size.
 export class PanelGap {
     constructor(panel, settings) {
         this.panel = panel;
@@ -44,7 +45,7 @@ export class PanelGap {
         const [, panelHeight] = this.panel.get_transformed_size();
         if (![x, y, width, height, panelY, panelHeight].every(Number.isFinite) || width <= 0 || panelHeight <= 0)
             return;
-        const bottom = Math.floor(panelY + panelHeight + 1e-6);
+        const bottom = Math.max(Math.round(y), Math.floor(panelY + panelHeight + 1e-6) - 1);
         if (bottom >= Math.round(y) + Math.round(height)) {
             this.restore();
             return;
