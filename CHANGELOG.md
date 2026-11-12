@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.5 — 2026-11-12
+
+- Faz blur, brilho e cor do painel acompanharem o fade de 250 ms ao entrar e sair do Overview.
+- Corrige a aparição abrupta do blur no primeiro frame visível da barra.
+- Continua transições interrompidas a partir do valor atual e libera capturas no Overview aberto.
+- Mantém a geometria da captura do painel estável enquanto varia a intensidade do blur.
+- Adiciona uma regressão baseada nos pixels apresentados, com fonte estática isolada da animação do Overview.
+
 ## 0.3.4 — 2026-11-12
 
 - Corrige a perda de intensidade do blur na faixa inferior do dock.

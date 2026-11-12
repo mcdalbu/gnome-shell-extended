@@ -9,6 +9,8 @@ import time
 def run(evaluate, wait, check, screenshot, results, root, output, variant, display_env, log):
     test_panel_blur(evaluate, wait, check, screenshot, results, output, variant)
     test_system_dialogs(evaluate, wait, check, screenshot, results, output, variant)
+    if os.environ.get('GSE_TEST_FLICKER'):
+        test_panel_rendered_fade(evaluate, wait, results)
     test_panel_fade(evaluate, wait, check, results)
     # Color scheme changes must work without restarting the extension.
     evaluate("globalThis.interfaceSettings=Gio.Settings.new('org.gnome.desktop.interface');cfg.set_string('panel-style','theme');interfaceSettings.set_string('color-scheme','prefer-dark')")
@@ -354,3 +356,30 @@ def test_dock_bottom(evaluate, wait, screenshot, results, output, variant):
         assert all(blurred[band]<sharp[band]*0.85 for band in sharp), results[name+'-contrast']
         assert abs(blurred['bottom']/sharp['bottom']-blurred['top']/sharp['top'])<0.05, results[name+'-contrast']
     evaluate("scene.hide();cfg.set_string('blur-backend',dockBottomSaved[0]);cfg.set_int('blur-radius',dockBottomSaved[1]);cfg.set_double('blur-brightness',dockBottomSaved[2]);cfg.set_double('dock-opacity',dockBottomSaved[3])")
+
+
+def test_panel_rendered_fade(evaluate, wait, results):
+    # A static source above Overview isolates the panel's own visual fade from
+    # the Overview wallpaper animation. Read native frames without screenshots.
+    evaluate("globalThis.fadePixelSaved=[cfg.get_boolean('panel-auto-opacity'),cfg.get_double('panel-opacity'),cfg.get_string('blur-backend')];cfg.set_boolean('panel-auto-opacity',false);cfg.set_double('panel-opacity',0.6);cfg.set_string('blur-backend','native');for(const child of scene.get_children()){child.y=0;child.height=1000};Main.uiGroup.set_child_below_sibling(scene,Main.layoutManager.panelBox);Main.overview.show()")
+    wait('Main.overview.visible && !Main.overview.animationInProgress')
+    evaluate("""globalThis.panelPixelFrames=[];
+        globalThis.panelPixelProbe=global.stage.connect('after-paint',(_stage,view)=>{
+            const monitor=Main.layoutManager.primaryMonitor;if(view.layout.x!==monitor.x || view.layout.y!==monitor.y)return;
+            const scale=view.get_scale();const bytes=frameProbe.read(view.get_framebuffer(),Math.round(100*scale),Math.round(5*scale),Math.round(300*scale),Math.round(3*scale)).get_data();
+            const mean=[0,0,0];for(let i=0;i<bytes.length;i+=4)for(let c=0;c<3;c++)mean[c]+=bytes[i+c]/(bytes.length/4);
+            let variance=0;for(let i=0;i<bytes.length;i+=4)for(let c=0;c<3;c++)variance+=(bytes[i+c]-mean[c])**2/(bytes.length/4);
+            const panel=ext._manager._slots.get('panel').instance;
+            panelPixelFrames.push({value:panel.fade.value,detail:Math.sqrt(variance)});
+        });global.stage.queue_redraw();""")
+    wait('panelPixelFrames.length>0')
+    evaluate('Main.overview.hide()')
+    wait("!Main.overview.visible && !ext._manager._slots.get('panel').instance.returning")
+    evaluate('global.stage.disconnect(panelPixelProbe)')
+    frames=evaluate('panelPixelFrames')
+    results['panel-rendered-fade-frames']=frames
+    clear=frames[0]['detail']
+    early=[f for f in frames if 0<f['value']<0.15]
+    assert early and all(f['detail']>clear*0.8 for f in early), frames
+    assert frames[-1]['detail']<clear*0.7, frames
+    evaluate("cfg.set_boolean('panel-auto-opacity',fadePixelSaved[0]);cfg.set_double('panel-opacity',fadePixelSaved[1]);cfg.set_string('blur-backend',fadePixelSaved[2]);for(const child of scene.get_children()){child.y=32;child.height=968};scene.get_parent().remove_child(scene);Main.uiGroup.insert_child_above(scene,global.window_group)")

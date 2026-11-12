@@ -1,4 +1,4 @@
-# Validação — Gnome Shell Extended 0.3.4
+# Validação — Gnome Shell Extended 0.3.5
 
 Data: 12 de novembro de 2026, America/Fortaleza.
 
@@ -14,7 +14,7 @@ CSS/launcher do Configurações e perfis Ptyxis.
 
 ## Regressões verificadas
 
-Evidências da versão 0.3.4: `validation/flicker-blur-results.json` e
+Evidências da versão 0.3.5: `validation/flicker-results.json` e
 `validation/flicker-blur-multi-results.json`. As evidências locais ficam fora
 do pacote e do Git por conterem dados da sessão de teste.
 
@@ -188,6 +188,29 @@ painel, restauração de estilos e dez ciclos enable/disable.
 A correção usa o mesmo limite por view nos quatro lados da tela e mantém o
 tamanho das texturas durante o deslocamento. O teste não grava screenshots
 enquanto o probe de intellihide mede os frames nativos.
+
+## Fade renderizado da barra (0.3.5)
+
+O teste adicional coloca uma fonte estática de faixas acima do fundo do
+Overview e abaixo do painel. Um probe lê os pixels do framebuffer em
+`after-paint`, sem screenshots, e associa o contraste da faixa ao progresso
+da transição. Isso separa o efeito da barra da animação do papel de parede.
+Nos primeiros 15% do progresso, o detalhe deve permanecer acima de 80% da
+referência transparente, em vez de cair imediatamente para o blur final.
+Ao terminar, o detalhe deve estar abaixo de 70% da referência.
+
+A regressão anterior foi reproduzida: com progresso 0,0092, o desvio de cor
+saltava de 44,81 para 20,71. Depois da correção, nesse mesmo progresso ficou
+em 44,45; em 0,032 passou a 42,96, em 0,077 a 41,50 e em 0,146 a 37,29.
+O resultado final permaneceu em 8,23. O primeiro frame do retorno concluído
+foi observado em aproximadamente 263 ms, com duração configurada de 250 ms.
+
+A cor do painel, o raio efetivo do blur e o brilho usam o mesmo progresso.
+A área de captura é calculada com o raio final, evitando variar sua geometria
+por frame durante essa animação. O backend ainda pode escolher sua resolução
+interna conforme o raio efetivo. Na entrada do Overview, a transição é feita
+no sentido inverso; ao ficar totalmente aberto, o estilo nativo é restaurado
+e as capturas são liberadas. Interromper a animação mantém o valor atual.
 
 ## Limites
 

@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **0.3.4**.
+preferências GTK4/Libadwaita. Versão **0.3.5**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -33,6 +33,19 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
+
+## Correções da versão 0.3.5
+
+- A barra superior faz fade-out ao entrar no Overview e fade-in ao sair, em
+  250 ms, mantendo textos e ícones opacos. Cor, intensidade do blur e brilho
+  acompanham a mesma transição; o blur não aparece inteiro no primeiro frame.
+- Reabrir ou fechar o Overview durante a transição continua a partir do valor
+  atual. No Overview totalmente aberto, o painel volta ao estilo nativo e
+  libera suas capturas.
+- A área de captura do painel usa o raio final durante a animação, evitando
+  redimensionar a área de amostragem a cada passo do fade.
+- O teste acompanha os pixels apresentados sobre uma fonte estática, além dos
+  valores CSS, para detectar uma entrada abrupta do blur.
 
 ## Correções da versão 0.3.4
 

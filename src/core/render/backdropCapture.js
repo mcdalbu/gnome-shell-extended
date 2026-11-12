@@ -37,13 +37,13 @@ export function updateCaptureAppearance(state, radiusProperty, radius, brightnes
     }
 }
 
-export function syncBackdropCapture(state, view, backend, radiusProperty, radius, brightness, rate, owner = null) {
+export function syncBackdropCapture(state, view, backend, radiusProperty, radius, brightness, rate, owner = null, geometryRadius = radius) {
     // A view owns a physical-pixel sampling grid and its own effect/cache.
     // Sharing a logical grid, or changing one capture between differently
     // scaled views, shifts the blur phase during movement.
     if (!view) {
         for (const stageView of state.blur.peek_stage_views())
-            syncBackdropCapture(state, stageView, backend, radiusProperty, radius, brightness, rate, owner);
+            syncBackdropCapture(state, stageView, backend, radiusProperty, radius, brightness, rate, owner, geometryRadius);
         return;
     }
     const [x, y] = state.blur.get_transformed_position();
@@ -77,10 +77,10 @@ export function syncBackdropCapture(state, view, backend, radiusProperty, radius
     }
     updateCaptureAppearance(state, radiusProperty, radius, brightness, rate);
     const scale = view.get_scale();
-    const physicalRadius = Math.round(radius * scale);
+    const physicalRadius = Math.round(geometryRadius * scale);
     const steps = Math.max(0, Math.ceil(Math.log2(Math.max(1, physicalRadius / 12))));
     const tile = Math.max(64, 2 ** steps);
-    const padding = Math.ceil(3 * radius * scale);
+    const padding = Math.ceil(3 * geometryRadius * scale);
     const gridLeft = Math.floor(((x - layout.x) * scale - padding) / tile) * tile;
     const gridTop = Math.floor(((y - layout.y) * scale - padding) / tile) * tile;
     // Reserve an extra tile for the offset from the window to the grid.

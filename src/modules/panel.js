@@ -35,7 +35,7 @@ export default class PanelModule {
         this.signals.connect(this.fade, 'notify::value', () => this._applyAppearance());
         this.binding = new SurfaceBinding({box: this.panel, anchor: Main.layoutManager.panelBox,
             settings: this.settings, logger: this.logger,
-            enabled: () => !this.disabled && !this.overviewActive &&
+            enabled: () => !this.disabled && (!this.overviewActive || this.overviewOpening) &&
                 this.settings.get_boolean('panel-blur') && this.settings.get_boolean('blur-enabled') &&
                 this.settings.get_int('blur-radius') > 0 && this.settings.get_string('blur-backend') !== 'off' &&
                 (this.appearance?.alpha ?? 1) < 1,
@@ -58,6 +58,7 @@ export default class PanelModule {
         this.signals.connect(St.ThemeContext.get_for_stage(global.stage), 'changed', () => this.sync(true));
         this.signals.connect(Main.layoutManager, 'monitors-changed', this.queue);
         this.signals.connect(Main.overview, 'showing', () => this._suspendForOverview());
+        this.signals.connect(Main.overview, 'shown', () => this._finishSuspend());
         this.signals.connect(Main.overview, 'hiding', () => this._startReturn());
         this.signals.connect(Main.overview, 'hidden', () => this._returnFromOverview());
         if (this.overviewClosing)
@@ -75,23 +76,33 @@ export default class PanelModule {
 
     _suspendForOverview() {
         this.overviewActive = true;
+        this.overviewOpening = true;
         this.overviewClosing = false;
         if (this._returnLater)
             global.compositor.get_laters().remove(this._returnLater);
         this._returnLater = 0;
         this.fade.remove_transition('value');
-        this.fade.value = 0;
         this.returning = false;
-        this._restoreAppearance();
         this._track(false);
+        this.fade.ease(0, {duration: 250, mode: Clutter.AnimationMode.EASE_IN_OUT_CUBIC,
+            onComplete: () => this._finishSuspend()});
+    }
+
+    _finishSuspend() {
+        if (this.disabled || !this.overviewActive)
+            return;
+        this.overviewOpening = false;
+        this.fade.remove_transition('value');
+        this.fade.value = 0;
+        this._restoreAppearance();
     }
 
     _startReturn() {
         this.overviewActive = false;
+        this.overviewOpening = false;
         this.overviewClosing = true;
         this.returning = true;
         this.fade.remove_transition('value');
-        this.fade.value = 0;
         this.sync(true);
         // Match the legacy transition: return during Overview's closing
         // animation, not an additional delay after it has already closed.
@@ -119,7 +130,7 @@ export default class PanelModule {
     }
 
     _applyAppearance() {
-        if (this.disabled || this.overviewActive || !this.appearance)
+        if (this.disabled || (this.overviewActive && !this.overviewOpening) || !this.appearance)
             return;
         const {color, foreground, alpha} = this.appearance;
         const visibleAlpha = alpha * this.fade.value;
@@ -170,12 +181,12 @@ export default class PanelModule {
         try {
             if (themeChanged)
                 this.color = null;
-            if (this.overviewActive || (Main.overview.visible && !this.overviewClosing)) {
+            if ((this.overviewActive || (Main.overview.visible && !this.overviewClosing)) && !this.overviewOpening) {
                 this._restoreAppearance();
                 this._track(false);
                 return;
             }
-            this._track(this.settings.get_boolean('panel-auto-opacity'));
+            this._track(!this.overviewActive && this.settings.get_boolean('panel-auto-opacity'));
             if (!this.color || themeChanged) {
                 this.style.restore();
                 const color = this.panel.get_theme_node().get_background_color();

@@ -300,6 +300,10 @@ export class Surface {
         // Dock decoration fades through actor opacity. Keep its filter/grid
         // stable during that fade; only slide visibility changes its radius.
         let fade = this.options.dock ? 1 : this.box.get_paint_opacity() / 255;
+        // BACKGROUND effects can ignore inherited paint opacity. Ramp their
+        // filter and brightness too, so the first nonzero frame is not fully
+        // frosted while only the CSS tint is still transparent.
+        fade *= this.options.fade?.() ?? 1;
         if (this.options.dock) {
             const [x, y] = this.box.get_transformed_position();
             const [width, height] = this.box.get_transformed_size();
@@ -311,7 +315,8 @@ export class Surface {
             }
         }
         syncBackdropCapture(this._state, view, this.backend.api, this.property,
-            this._radius * fade, 100 + (this._brightness - 100) * fade, this._hz);
+            this._radius * fade, 100 + (this._brightness - 100) * fade, this._hz,
+            null, this.options.fade ? this._radius : undefined);
     }
 
     _repaintEffects() {
