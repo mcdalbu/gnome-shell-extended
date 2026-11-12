@@ -389,3 +389,61 @@ def test_panel_rendered_fade(evaluate, wait, results):
     assert any(0.2<f['value']<0.8 and 171<f['alpha']<250 for f in closed), frames
     assert 200<=closed[-1]['time']<=400 and abs(closed[-1]['alpha']-171)<=2, frames
     evaluate("cfg.set_boolean('panel-auto-opacity',fadePixelSaved[0]);cfg.set_double('panel-opacity',fadePixelSaved[1]);cfg.set_string('blur-backend',fadePixelSaved[2]);cfg.set_double('blur-brightness',fadePixelSaved[3]);for(const child of scene.get_children()){child.y=32;child.height=968}")
+
+
+def test_window_reveal(evaluate, wait, check, results, root, display_env, log):
+    process=subprocess.Popen(['gjs','-m',str(root/'tests/windowFade.js')],env=display_env,stdout=log,stderr=log)
+    try:
+        wait("global.get_window_actors().some(a=>a.meta_window.get_title()==='GSE fade target') && global.get_window_actors().some(a=>a.meta_window.get_title()==='GSE fade cover')")
+        evaluate("globalThis.fadeTarget=global.get_window_actors().find(a=>a.meta_window.get_title()==='GSE fade target');globalThis.fadeCover=global.get_window_actors().find(a=>a.meta_window.get_title()==='GSE fade cover');for(const a of [fadeTarget,fadeCover])a.meta_window.move_resize_frame(false,Main.layoutManager.primaryMonitor.x+120,Main.layoutManager.primaryMonitor.y+180,600,360);fadeCover.meta_window.activate(global.get_current_time());globalThis.windowFadeSettings=[cfg.get_int('blur-radius'),cfg.get_double('blur-brightness')];cfg.set_int('blur-radius',48);cfg.set_double('blur-brightness',1)")
+        wait("ext._manager._slots.get('opacity').instance.windowBlur._windows.get(fadeTarget)?.captures.size>0")
+        time.sleep(0.5)
+        evaluate("""globalThis.windowFadeFrames=[];
+            globalThis.windowFadeRead=(_stage,view)=>{
+                const state=ext._manager._slots.get('opacity').instance.windowBlur._windows.get(fadeTarget);
+                if(!state || global.display.focus_window!==fadeTarget.meta_window || !state.blur?.visible)return;
+                const r=fadeTarget.meta_window.get_frame_rect();if(r.x<view.layout.x || r.x>=view.layout.x+view.layout.width)return;
+                const scale=view.get_scale();
+                const read=(dx,w)=>frameProbe.read(view.get_framebuffer(),Math.round((r.x+dx-view.layout.x)*scale),Math.round((r.y+35-view.layout.y)*scale),Math.round(w*scale),Math.round(3*scale)).get_data();
+                const data=read(25,150),mean=[0,0,0];for(let i=0;i<data.length;i+=4)for(let c=0;c<3;c++)mean[c]+=data[i+c]/(data.length/4);
+                let variance=0;for(let i=0;i<data.length;i+=4)for(let c=0;c<3;c++)variance+=(data[i+c]-mean[c])**2/(data.length/4);
+                const content=read(300,10);const opaque=[0,0,0];for(let i=0;i<content.length;i+=4)for(let c=0;c<3;c++)opaque[c]+=content[i+c]/(content.length/4);
+                windowFadeFrames.push({value:state.reveal?.value??1,detail:Math.sqrt(variance),actor:fadeTarget.opacity,opaque});
+            };globalThis.windowFadeProbe=global.stage.connect('after-paint',windowFadeRead);fadeTarget.meta_window.activate(global.get_current_time());""")
+        wait('global.display.focus_window===fadeTarget.meta_window')
+        time.sleep(0.65)
+        evaluate('global.stage.disconnect(windowFadeProbe)')
+        frames=evaluate('windowFadeFrames')
+        results['window-focus-reveal-frames']=frames
+        assert len(frames)>5 and any(0<f['value']<1 for f in frames), frames
+        assert frames[0]['detail']>frames[-1]['detail']*1.4, frames
+        assert all(f['actor']==255 for f in frames), frames
+        assert all(max(abs(a-b) for a,b in zip(f['opaque'],frames[-1]['opaque']))<1 for f in frames), frames
+        evaluate('fadeTarget.meta_window.minimize()')
+        wait("!ext._manager._slots.get('opacity').instance.windowBlur._visible.has(ext._manager._slots.get('opacity').instance.windowBlur._windows.get(fadeTarget))")
+        evaluate("windowFadeFrames=[];windowFadeProbe=global.stage.connect('after-paint',windowFadeRead);fadeTarget.meta_window.unminimize();fadeTarget.meta_window.activate(global.get_current_time())")
+        time.sleep(0.9)
+        evaluate('global.stage.disconnect(windowFadeProbe)')
+        restored=evaluate('windowFadeFrames')
+        results['window-restore-reveal-frames']=restored
+        assert any(0<f['value']<1 for f in restored) and restored[-1]['value']==1, restored
+        # Geometry/damage and refocusing the same front window must not rewind.
+        evaluate('fadeTarget.meta_window.activate(global.get_current_time());fadeTarget.meta_window.move_frame(false,140,200)')
+        time.sleep(0.1)
+        check('window-reveal-not-restarted-by-move', "ext._manager._slots.get('opacity').instance.windowBlur._windows.get(fadeTarget).reveal.value===1")
+        # Repeated focus reversals during a reveal must settle and leave no
+        # transitions behind when the feature is disabled.
+        for _ in range(3):
+            evaluate('fadeCover.meta_window.activate(global.get_current_time())')
+            time.sleep(0.04)
+            evaluate('fadeTarget.meta_window.activate(global.get_current_time())')
+            time.sleep(0.04)
+        time.sleep(0.4)
+        check('window-reveal-settles-after-focus-reversals', "ext._manager._slots.get('opacity').instance.windowBlur._windows.get(fadeTarget).reveal.value===1")
+        evaluate("globalThis.removedFadeState=ext._manager._slots.get('opacity').instance.windowBlur._windows.get(fadeTarget);cfg.set_boolean('windows-blur',false)")
+        wait("!ext._manager._slots.get('opacity').instance.windowBlur")
+        check('window-reveal-disposed-on-disable', '!removedFadeState.reveal && !removedFadeState.source && removedFadeState.captures.size===0')
+        evaluate("cfg.set_boolean('windows-blur',true);cfg.set_int('blur-radius',windowFadeSettings[0]);cfg.set_double('blur-brightness',windowFadeSettings[1])")
+    finally:
+        process.terminate()
+        process.wait(timeout=5)

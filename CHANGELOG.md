@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.10 — 2026-11-12
+
+- Adiciona fade-in de 250 ms ao blur de janelas ao mostrar, restaurar ou trazê-las de trás de outra janela.
+- Anima intensidade e brilho do fundo, preservando a opacidade do ator da janela e os pixels opacos.
+- Evita reinícios por geometria/dano e reduz o recuo do efeito nas sobreposições parciais.
+- Preserva o progresso em trocas rápidas de foco e cancela transições ao ocultar/remover/desativar.
+- Valida os pixels de janelas Wayland reais, restauração, conteúdo opaco e descarte dos recursos.
+- Incorpora as correções de lacuna do painel da versão 0.3.9.
+
 ## 0.3.9 — 2026-11-12
 
 - Fecha a junção também quando o painel e sua reserva já têm a mesma altura.

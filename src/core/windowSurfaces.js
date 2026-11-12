@@ -72,7 +72,8 @@ export class WindowSurfaces {
                 this._queueUpdate();
             });
             const removed = added === 'child-added' ? 'child-removed' : 'actor-removed';
-            this._signals.connect(group, removed, () => {
+            this._signals.connect(group, removed, (_group, actor) => {
+                this._stack.delete(actor);
                 this._stackPending = true;
                 this._queueUpdate();
             });
@@ -90,7 +91,18 @@ export class WindowSurfaces {
             }
         };
         this._signals.connect(global.display, 'restacked', restack);
-        this._signals.connect(global.display, 'notify::focus-window', restack);
+        this._signals.connect(global.display, 'notify::focus-window', () => {
+            const actor = global.display.focus_window?.get_compositor_private();
+            const state = this._windows.get(actor);
+            // Refocusing an already exposed window (for example after closing
+            // a Shell menu) must not restart its blur. Animate an actual raise.
+            const from = state?.normal ? this._revealStartForRaise(state) : null;
+            if (from !== null) {
+                state.revealFrom = from;
+                this._dirty.add(state);
+            }
+            restack();
+        });
         this._signals.connect(Main.overview, 'showing', refresh);
         this._signals.connect(Main.overview, 'hidden', refresh);
         this._signals.connect(Main.sessionMode, 'updated', refresh);
@@ -268,6 +280,57 @@ export class WindowSurfaces {
         this._stack = stack;
     }
 
+    _revealStartForRaise(state) {
+        const placement = this._stack.get(state.actor);
+        if (!placement)
+            return null;
+        const frame = state.window.get_frame_rect();
+        let covered = 0;
+        for (const [actor, other] of this._stack) {
+            if (other.group !== placement.group || other.index <= placement.index || !actor.mapped)
+                continue;
+            const window = actor.meta_window;
+            if (!window || window.minimized || !normalTypes.includes(window.get_window_type()) ||
+                !window.showing_on_its_workspace())
+                continue;
+            const rect = window.get_frame_rect();
+            covered = Math.max(covered,
+                Math.max(0, Math.min(frame.x + frame.width, rect.x + rect.width) - Math.max(frame.x, rect.x)) *
+                Math.max(0, Math.min(frame.y + frame.height, rect.y + rect.height) - Math.max(frame.y, rect.y)));
+        }
+        // A tiny overlap must not clear blur that was already exposed. A
+        // fully covered window gets the complete 0..1 reveal; partial raises
+        // start closer to the settled intensity instead of flashing clear.
+        return covered > 0 ? 1 - Math.min(1, covered / Math.max(1, frame.width * frame.height)) : null;
+    }
+
+    _reveal(state, wasVisible, from) {
+        if (!state.normal || this._radius === 0) {
+            state.reveal?.remove_transition('value');
+            if (state.reveal)
+                state.reveal.value = 1;
+            return;
+        }
+        if (!state.reveal) {
+            state.reveal = new St.Adjustment({actor: Main.uiGroup, lower: 0, upper: 1, value: 0});
+            state.signals.connect(state.reveal, 'notify::value', () => {
+                if (!this._visible.has(state))
+                    return;
+                this._applyEffect(state);
+                this._syncCapture(state);
+                // Driven only by the finite transition, never by a paint loop.
+                for (const capture of state.captures.values())
+                    capture.effect.queue_repaint();
+                state.blur.queue_redraw();
+            });
+        }
+        const running = !!state.reveal.get_transition('value');
+        state.reveal.remove_transition('value');
+        if (!wasVisible || !running)
+            state.reveal.value = from;
+        state.reveal.ease(1, {duration: 250, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+    }
+
     _flush() {
         if (!this._dirty.size && !this._damage.size && !this._exposed.length &&
             !this._restacked && !this._stackPending) {
@@ -348,6 +411,10 @@ export class WindowSurfaces {
 
     _hide(state) {
         this._visible.delete(state);
+        state.revealFrom = undefined;
+        state.reveal?.remove_transition('value');
+        if (state.reveal)
+            state.reveal.value = 0;
         state.blur?.hide();
         if (state.source) {
             state.actor.remove_effect(state.source);
@@ -367,12 +434,16 @@ export class WindowSurfaces {
             state.source.run_dispose();
             state.source = null;
         }
-        updateCaptureAppearance(state, this._radiusProperty, this._radius, this._brightness, this._rate);
+        const progress = state.reveal?.value ?? 1;
+        updateCaptureAppearance(state, this._radiusProperty, this._radius * progress,
+            100 + (this._brightness - 100) * progress, this._rate);
     }
 
     _syncCapture(state, view = null) {
+        const progress = state.reveal?.value ?? 1;
         syncBackdropCapture(state, view, this._backend, this._radiusProperty,
-            this._radius, this._brightness, this._rate, state.actor);
+            this._radius * progress, 100 + (this._brightness - 100) * progress,
+            this._rate, state.actor, this._radius);
     }
 
     _updateWindow(state, opaque = this._blurWindows && state.normal && this._isOpaque(state)) {
@@ -393,6 +464,10 @@ export class WindowSurfaces {
             (parent === global.window_group || parent === global.top_window_group);
         if (!enabled)
             return this._hide(state);
+        const wasVisible = this._visible.has(state);
+        const reveal = !wasVisible || state.revealFrom !== undefined;
+        const revealFrom = wasVisible ? state.revealFrom : 0;
+        state.revealFrom = undefined;
         if (!state.blur) {
             state.blur = new BackdropWidget({name: 'gse-window-blur', reactive: false,
                 style: 'background-color: transparent;'});
@@ -424,10 +499,12 @@ export class WindowSurfaces {
             state.blur.opacity = actor.opacity;
             state.clip.radius = cornerRadius;
         }
-        this._applyEffect(state);
-        this._syncCapture(state);
         state.blur.show();
         this._visible.add(state);
+        if (reveal)
+            this._reveal(state, wasVisible, revealFrom);
+        this._applyEffect(state);
+        this._syncCapture(state);
         state.blurBounds = {x, y, right: x + frame.width * actor.scale_x,
             bottom: y + frame.height * actor.scale_y};
         return changed;
@@ -442,6 +519,8 @@ export class WindowSurfaces {
         this._damage.delete(state);
         this._hide(state);
         state.signals.clear();
+        state.reveal?.run_dispose();
+        state.reveal = null;
         for (const {actor: capture, effect} of state.captures.values()) {
             capture.remove_effect(effect);
             effect.run_dispose();

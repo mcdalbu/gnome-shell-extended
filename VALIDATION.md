@@ -1,4 +1,4 @@
-# Validação — Gnome Shell Extended 0.3.9
+# Validação — Gnome Shell Extended 0.3.10
 
 Data: 12 de novembro de 2026, America/Fortaleza.
 
@@ -249,6 +249,33 @@ Aos 43/52/70/86 ms, o alpha passou por 244/235/225/216, chegando a 171 em
 aproximadamente 271 ms (250 ms configurados mais a cadência de apresentação).
 A sessão completa passou, incluindo limpeza e zero frames em repouso na
 amostra. Estes valores são específicos dessa execução.
+
+## Fade de blur em janelas (0.3.10)
+
+Evidências: `validation/window-fade-0.3.10/{flicker,flicker-blur-multi}-results.json`,
+ambas com `passed: true`. O teste em escalas mistas também inclui as regressões
+da reserva do painel da versão 0.3.9.
+
+Duas janelas GTK4/Wayland reais são abertas em uma fixture do compositor
+privado. A janela-alvo usa a identidade Ptyxis para entrar no mesmo caminho
+selecionado da integração, com uma lateral translúcida e conteúdo opaco. A
+segunda pertence a outra aplicação e pinta faixas opacas, fornecendo uma
+fonte nítida abaixo da alvo quando ela é elevada. Não é um terminal Ptyxis real.
+
+O probe lê os pixels apresentados durante a elevação da alvo. A versão
+anterior apresentou apenas um frame com progresso 1 e desvio de cor 3,82,
+isto é, blur já completo. Com a transição, a execução inicial a 100% observou
+29 frames, com desvio de cor passando por 102,13 → 78,21 → 46,27 → 3,82.
+O ator da janela manteve opacidade 255, e a amostra de conteúdo opaco ficou
+em RGB (50,55,60) durante toda a animação.
+
+O teste também minimiza/restaura a janela, move e refoca uma janela já exposta,
+alterna o foco rapidamente e desativa o blur durante a sessão. Exige valores
+intermediários na restauração, não reiniciar por movimento, concluir após as
+trocas de foco e descartar ajustes, fontes e capturas ao desativar. A fixture
+é encerrada ao final; as preferências e o launcher do Configurações continuam
+sob a validação de restauração existente. A transição usa 250 ms e a geometria
+de amostragem é calculada com o raio final. Não há timer em repouso.
 
 ## Limites
 

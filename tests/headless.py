@@ -324,6 +324,9 @@ def test():
             content = difference(rect[0]+rect[2]-30, rect[1]+rect[3]-45)
             results['settings-pixel-difference'] = {'sidebar': sidebar, 'content': content}
             assert sidebar > 5 and content < 1, results['settings-pixel-difference']
+            if os.environ.get('GSE_TEST_FLICKER'):
+                from regressions import test_window_reveal
+                test_window_reveal(evaluate, wait, check, results, ROOT, display_env, log)
         finally:
             import signal
             os.kill(settings_pid, signal.SIGTERM)

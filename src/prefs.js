@@ -119,7 +119,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             'opacity-enabled', 'Ativar transparência seletiva');
         const appOptions = dependent(apps, 'opacity-enabled', 'Fundos dos aplicativos',
             'A disponibilidade depende da versão e dos estilos do aplicativo. Aplicativos Flatpak podem não ler o CSS do host.');
-        toggle(appOptions, 'windows-blur', 'Blur nos fundos transparentes', 'Aplica às integrações selecionadas, preservando os pixels opacos do aplicativo.');
+        toggle(appOptions, 'windows-blur', 'Blur nos fundos transparentes', 'Aplica às integrações selecionadas com fade-in de 250 ms ao mostrar/restaurar ou trazer a janela para a frente. Preserva os pixels opacos do aplicativo.');
         number(appOptions, 'gtk-background-opacity', 'Opacidade do fundo', 0, 1, 0.05);
         toggle(appOptions, 'opacity-gtk-files-sidebar', 'Barra lateral do Arquivos', 'Para versões com sidebar-pane/content-pane.');
         toggle(appOptions, 'opacity-gtk-menus', 'Menus GTK4', 'Aplica o fundo dos popovers de menu em aplicativos que leem o CSS do usuário.');
@@ -127,7 +127,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         toggle(appOptions, 'opacity-gtk-settings-sidebar', 'Barra lateral do Configurações',
             'Adiciona uma classe CSS via overlay do recurso CcWindow e lançador D-Bus reversível do usuário. Requer gresource e reinício do aplicativo.');
 
-        const maintenance = group(blur, 'Gnome Shell Extended 0.3.9', 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
+        const maintenance = group(blur, 'Gnome Shell Extended 0.3.10', 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
         const reset = new Adw.ActionRow({title: 'Restaurar configurações da extensão'});
         const button = new Gtk.Button({label: 'Restaurar', valign: Gtk.Align.CENTER});
         button.connect('clicked', () => {

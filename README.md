@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **0.3.9**.
+preferências GTK4/Libadwaita. Versão **0.3.10**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -33,6 +33,20 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
+
+## Novidades da versão 0.3.10
+
+- Janelas com blur ativo recebem fade-in de 250 ms ao mostrar/restaurar ou
+  voltar à frente de uma janela sobreposta. A intensidade e o brilho do blur
+  avançam gradualmente; o ator da janela e os pixels opacos não mudam de opacidade.
+- Movimentos, redimensionamentos, atualizações do aplicativo e refoco de uma
+  janela já exposta não reiniciam a transição. Sobreposições parciais partem
+  de uma intensidade mais próxima da final, evitando limpar o blur já visível.
+- Trocas rápidas de foco continuam a transição em andamento. Ocultar, remover
+  a janela ou desativar a integração cancela e descarta as animações.
+- A captura conserva a geometria do raio final durante o fade, sem timer em
+  repouso. O efeito continua limitado às integrações de aplicativos selecionadas.
+- Mantém a opção de remover a lacuna do painel introduzida na versão 0.3.9.
 
 ## Correção da versão 0.3.9
 
