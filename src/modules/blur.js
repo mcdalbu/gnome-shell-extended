@@ -61,7 +61,7 @@ export default class BlurModule {
             const delegate = actor._delegate;
             if (delegate?.isOpen !== undefined && delegate.box && delegate.actor)
                 this._bind(actor, delegate.box, delegate.actor, 'blur-menus', delegate);
-            else if (name.includes('ModalDialog'))
+            else if (actor.dialogLayout && actor.contentLayout && actor.buttonLayout)
                 this._bind(actor, actor.dialogLayout?._dialog ?? actor.dialogLayout, actor, 'blur-dialogs');
             else if (name.includes('AppFolderDialog'))
                 this._bind(actor, actor._viewBox, actor, 'blur-folders');

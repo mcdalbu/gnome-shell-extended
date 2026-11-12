@@ -1,4 +1,4 @@
-# Validação — Gnome Shell Extended 0.3.2
+# Validação — Gnome Shell Extended 0.3.3
 
 Data: 11 de novembro de 2026, America/Fortaleza.
 
@@ -8,13 +8,13 @@ GNOME Shell/Mutter 51.1 (Fedora 45), GJS 1.90.1, Wayland headless, GBM/EGL com
 driver xe. D-Bus, configurações e extensões de teste ficam em diretórios XDG
 privados. A sessão de trabalho do usuário não foi modificada.
 
-`make test` valida 28 módulos ESModule, metadata, esquema estrito, 44 opções
+`make test` valida 28 módulos ESModule, metadata, esquema estrito, 45 opções
 GSettings, lifecycle/imports assíncronos, descarte de recursos, restauração de
 CSS/launcher do Configurações e perfis Ptyxis.
 
 ## Regressões verificadas
 
-Evidências da versão 0.3.2: `validation/flicker-results.json` e
+Evidências da versão 0.3.3: `validation/flicker-results.json` e
 `validation/flicker-blur-multi-results.json`. As evidências locais ficam fora
 do pacote e do Git por conterem dados da sessão de teste.
 
@@ -31,7 +31,7 @@ do pacote e do Git por conterem dados da sessão de teste.
 | Saída do Overview | Fade configurado em 250 ms no fundo; atores do painel e dos botões permanecem em opacidade 255 |
 | Interrupção do fade | Reabrir o Overview cancela o retorno e mantém o fundo transparente |
 | Escala | Uma view a 100% e duas views a 125%/150%, confirmadas pelo compositor |
-| Preferências | Seis páginas e 44 controles com leitura/escrita |
+| Preferências | Seis páginas e 45 controles com leitura/escrita |
 | Limpeza | Estilos, capturas e launcher restaurados; 10 ciclos enable/disable por sessão |
 | Repouso | 0 frames novos na amostra de 0,5 segundo após estabilização |
 
@@ -104,7 +104,7 @@ fullscreen com escala diferente da view usam a escala do framebuffer de
 captura ao construir o recorte, evitando o deslocamento observado durante a
 validação em escalas mistas.
 
-Resultados da execução final com duas views (125%/150%):
+Resultados históricos da versão 0.3.2 com duas views (125%/150%):
 
 | Medida | Resultado |
 | --- | --- |
@@ -119,6 +119,47 @@ Resultados da execução final com duas views (125%/150%):
 | Desvio de cor: prévias de janelas, sem/com blur | 32,61 → 9,14 |
 | Bordas na captura, sem/com blur | 0,576 → 0,295 (diferença horizontal de segunda ordem) |
 | Repouso após estabilização | 0 frames na amostra de 0,5 segundo |
+
+## Painel, contorno e diálogos de sessão (0.3.3)
+
+A barra superior tem binding próprio, sem interferir no lease de cor e estilo
+do módulo de painel. Seu blur usa o backend e os parâmetros globais. O teste
+compara os pixels com raio 48 e raio zero, mantém textos opacos, verifica a
+liberação do efeito quando o fundo fica opaco e sua suspensão no Overview.
+A opção `panel-blur` acrescenta o 45º controle às preferências.
+
+O dock anima a opacidade somente do widget decorativo, incluindo todos os
+seus pixels de fundo, borda e sombra, nos dois sentidos. Os testes acompanham
+o fade-out e o fade-in do dock real, exigem valores intermediários, verificam
+que a decoração acompanha o progresso da animação e que o primeiro plano
+permanece opaco. O filtro não muda de raio durante o fade da decoração,
+evitando mudanças de tamanho das capturas nessa transição. A opacidade
+original é restaurada no disable.
+
+A descoberta de diálogos usa `dialogLayout`, `contentLayout` e `buttonLayout`,
+identificando subclasses que não têm “ModalDialog” no nome. Os testes abrem
+os modos de sair, desligar e reiniciar de `Main.endSessionDialog`, com seus
+layouts e botões nativos, na sessão privada. Não chamam `OpenAsync`, não
+iniciam countdown e não acionam botões de confirmação. Cada modo passa pela
+comparação de pixels e por cancelamento com liberação do backdrop.
+
+Os demais alvos exercitados continuam sendo calendário, configurações rápidas,
+menu genérico, banner, pastas, OSD, captura, os dois seletores e prévias do
+Alt+Tab. Overview e bloqueio mantêm seus adaptadores de papel de parede; a
+validação de bloqueio continua limitada à fixture descrita abaixo.
+
+Execução final a 125%/150%: `passed: true`, seis páginas/45 controles,
+0 frames em repouso, 35 apresentações do fade-out e 33 do fade-in do dock.
+O desvio de cor na barra caiu de 40,21 para 20,33 com blur. Nos diálogos de
+sair/desligar/reiniciar caiu, respectivamente, de 14,03/14,00/14,13 para
+4,69/4,66/4,74. Todos mantiveram primeiro plano opaco e liberaram a superfície
+ao cancelar. Os testes de hover/intellihide, fechamento de menus e dez ciclos
+de enable/disable também passaram.
+
+A execução final a 100% também passou: barra 39,33 → 19,87; desligar/reiniciar
+16,17 → 2,78; zero frames em repouso. O helper grava as evidências com I/O
+assíncrono para não bloquear o compositor durante a substituição dos PNGs e
+não mistura screenshots adicionais com o probe dos frames nativos do dock.
 
 ## Limites
 

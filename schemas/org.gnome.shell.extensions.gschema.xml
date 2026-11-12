@@ -202,6 +202,11 @@
       <summary>Selective opacity: ptyxis</summary>
       <description>Optional application-side integration. Restart the application after changing GTK CSS. Settings uses a reversible CcWindow resource overlay and user D-Bus launcher.</description>
     </key>
+    <key name="panel-blur" type="b">
+      <default>true</default>
+      <summary>Blur behind the top panel</summary>
+      <description>Blur translucent panel backgrounds outside Overview. Opaque and hidden panels release their captures.</description>
+    </key>
     <key name="panel-auto-opacity" type="b">
       <default>true</default>
       <summary>Panel auto opacity</summary>

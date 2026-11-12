@@ -160,8 +160,11 @@ def test():
     def screenshot(name):
         path = OUTPUT / (VARIANT + '-' + name + '.png')
         evaluate('globalThis.gseCapture=false; (async()=>{'
-            f'const stream=Gio.File.new_for_path({json.dumps(str(path))}).replace(null,false,Gio.FileCreateFlags.REPLACE_DESTINATION,null);'
-            'await new Shell.Screenshot().screenshot(false,stream);stream.close(null);globalThis.gseCapture=true;})()')
+            f'const file=Gio.File.new_for_path({json.dumps(str(path))});'
+            'const stream=await new Promise((resolve,reject)=>file.replace_async(null,false,Gio.FileCreateFlags.REPLACE_DESTINATION,GLib.PRIORITY_DEFAULT,null,(f,r)=>{try{resolve(f.replace_finish(r))}catch(e){reject(e)}}));'
+            'await new Shell.Screenshot().screenshot(false,stream);'
+            'await new Promise((resolve,reject)=>stream.close_async(GLib.PRIORITY_DEFAULT,null,(s,r)=>{try{resolve(s.close_finish(r))}catch(e){reject(e)}}));'
+            'globalThis.gseCapture=true;})()')
         wait('gseCapture')
 
     try:
@@ -213,7 +216,7 @@ def test():
             from regressions import test_menu_close
             test_menu_close(evaluate, wait, check, results)
         check('panel-style', "Main.panel.get_style().includes('rgba(')")
-        evaluate("globalThis.bindingFor=box=>[...ext._manager._slots.get('blur').instance.bindings.values()].find(b=>b.box===box); cfg.set_boolean('blur-dialogs',true);cfg.set_boolean('blur-osd',true);cfg.set_boolean('blur-screenshot',true);cfg.set_boolean('blur-menus',true)")
+        evaluate("globalThis.bindingFor=box=>box===Main.panel?ext._manager._slots.get('panel')?.instance?.binding:[...ext._manager._slots.get('blur').instance.bindings.values()].find(b=>b.box===box); cfg.set_boolean('blur-dialogs',true);cfg.set_boolean('blur-osd',true);cfg.set_boolean('blur-screenshot',true);cfg.set_boolean('blur-menus',true)")
         evaluate("(async()=>{globalThis.DialogModule=await import('resource:///org/gnome/shell/ui/modalDialog.js');globalThis.PopupModule=await import('resource:///org/gnome/shell/ui/popupMenu.js');globalThis.Clutter=(await import('gi://Clutter')).default;})()")
         wait('globalThis.DialogModule && globalThis.PopupModule && globalThis.Clutter')
         evaluate("globalThis.dialog=new DialogModule.ModalDialog({destroyOnClose:false});dialog.contentLayout.add_child(new St.Label({text:'Gnome Shell Extended'}));dialog.addButton({label:'Close',action:()=>dialog.close()});dialog.open();")
@@ -270,6 +273,7 @@ def test():
         screenshot('dock')
         evaluate("cfg.set_boolean('blur-overview',true);Main.overview.show();")
         wait('ext._manager._slots.get("blur").instance.backgrounds?.group')
+        wait("ext._manager._slots.get('docks').instance.fade.value===0")
         check('dock-invisible-overview', "dockBg.get_style().includes('box-shadow: none') && !ext._manager._slots.get('docks').instance.records.get(dock).binding.surface")
         screenshot('overview')
         evaluate('Main.overview.hide();')
@@ -404,7 +408,7 @@ def test():
         evaluate('globalThis.oldManager=ext._manager;globalThis.oldPanelStyle=ext._manager._slots.get("panel").instance.style.original; ext.disable();')
         check('disable-slots-empty', 'oldManager._slots.size === 0 && oldManager._signals.length === 0')
         check('disable-panel-restored', 'Main.panel.get_style() === oldPanelStyle')
-        check('disable-dock-restored', "dockBg.get_style() === 'background-color: rgb(30,30,35); border-radius: 20px;'")
+        check('disable-dock-restored', "dockBg.get_style() === 'background-color: rgb(30,30,35); border-radius: 20px;' && dockBg.opacity===255")
         check('disable-backdrops-removed', "!Main.uiGroup.get_children().some(a=>a.name==='gse-surface')")
         check('disable-gtk-restored', "!new TextDecoder().decode(GLib.file_get_contents(GLib.get_user_config_dir()+'/gtk-4.0/gtk.css')[1]).includes('BEGIN Gnome Shell Extended')")
         check('disable-settings-launcher-restored', "!Gio.File.new_for_path(GLib.get_user_data_dir()+'/dbus-1/services/org.gnome.Settings.service').query_exists(null)")

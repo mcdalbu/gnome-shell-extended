@@ -25,7 +25,7 @@ export class Surface {
         this.signals = new Signals();
         this.frames = new FrameSignals();
         this.guard = new BlurRedrawGuard(Clutter, Meta);
-        this.style = new StyleLease(box);
+        this.style = options.manageStyle === false ? null : new StyleLease(box);
         this._destroyed = false;
         this._generation = 0;
         this._state = {captures: new Map()};
@@ -51,7 +51,7 @@ export class Surface {
             this.signals.connect(box, 'style-changed', () => {
                 // Dock theming temporarily clears its inline style to read the
                 // theme. Do not reapply our style inside that native operation.
-                if (!this._destroyed && !this._styling && this.box.get_style() !== this.style.applied && !this._appearanceLater) {
+                if (this.style && !this._destroyed && !this._styling && this.box.get_style() !== this.style.applied && !this._appearanceLater) {
                     this._appearanceLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
                         this._appearanceLater = 0;
                         this.update();
@@ -203,12 +203,14 @@ export class Surface {
         this._radius = this.settings.get_int('blur-radius');
         this._brightness = this.settings.get_double('blur-brightness') * 100;
         this._hz = this.settings.get_int('update-frequency');
-        this._styling = true;
-        this.style.restore();
-        const color = this.box.get_theme_node().get_background_color();
-        this._color = [color.red, color.green, color.blue];
-        this.style.set(`background-color: rgba(${color.red}, ${color.green}, ${color.blue}, ${this._alpha}); background-image: none; transition-duration: 0ms;`);
-        this._styling = false;
+        if (this.style) {
+            this._styling = true;
+            this.style.restore();
+            const color = this.box.get_theme_node().get_background_color();
+            this._color = [color.red, color.green, color.blue];
+            this.style.set(`background-color: rgba(${color.red}, ${color.green}, ${color.blue}, ${this._alpha}); background-image: none; transition-duration: 0ms;`);
+            this._styling = false;
+        }
         const wantBlur = this.options.blur?.() !== false && this._baseAlpha < 1 && this._radius > 0 &&
             this.settings.get_string('blur-backend') !== 'off';
         this.blur.visible = wantBlur;
@@ -256,12 +258,14 @@ export class Surface {
     }
 
     setFade(value) {
-        if (this._destroyed || !this._color)
+        if (this._destroyed)
             return;
         this._alpha = this._baseAlpha * value;
-        this._styling = true;
-        this.style.set(`background-color: rgba(${this._color.join(',')},${this._alpha}); background-image: none; transition-duration: 0ms;`);
-        this._styling = false;
+        if (this.style && this._color) {
+            this._styling = true;
+            this.style.set(`background-color: rgba(${this._color.join(',')},${this._alpha}); background-image: none; transition-duration: 0ms;`);
+            this._styling = false;
+        }
         this._syncVisibility();
         this._capture();
         this._repaint();
@@ -293,7 +297,9 @@ export class Surface {
     _capture(view = null) {
         if (!this.backend || !this.blur.visible || !this._visible())
             return;
-        let fade = this.box.get_paint_opacity() / 255;
+        // Dock decoration fades through actor opacity. Keep its filter/grid
+        // stable during that fade; only slide visibility changes its radius.
+        let fade = this.options.dock ? 1 : this.box.get_paint_opacity() / 255;
         if (this.options.dock) {
             const [x, y] = this.box.get_transformed_position();
             const [width, height] = this.box.get_transformed_size();
@@ -350,7 +356,7 @@ export class Surface {
         this._stopDamage = null;
         this._clearCaptures();
         if (!boxDestroyed)
-            this.style.restore();
+            this.style?.restore();
         if (this.group) {
             this.blur.remove_effect(this.clip);
             this.clip.run_dispose();

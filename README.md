@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **0.3.2** (primeira implementação funcional).
+preferências GTK4/Libadwaita. Versão **0.3.3**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -14,7 +14,7 @@ Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md
 | Docks | Dash to Dock/Ubuntu Dock: blur, opacidade do fundo e fundo invisível no Overview, preservando os ícones |
 | Sombras | Grade, pastas, dock e Alt+Tab; intensidade, raio e deslocamentos |
 | Aplicativos | Integração opcional por CSS para barras laterais do Nautilus/Configurações e menus GTK4; opacidade nativa dos perfis do Ptyxis |
-| Preferências | Seis abas, 44 opções, limites de valores e restauração de defaults |
+| Preferências | Seis abas, 45 opções, limites de valores e restauração de defaults |
 
 Por padrão, blur do calendário/configurações rápidas e painel adaptativo ficam
 ativos. Outros elementos podem ser habilitados individualmente. As integrações
@@ -33,6 +33,24 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
+
+## Correções da versão 0.3.3
+
+- O fade de 250 ms do dock funciona na entrada e na saída do Overview, incluindo
+  fundo, bordas e sombras. Apenas o widget decorativo muda de opacidade; os
+  ícones e a área de interação ficam preservados. A opacidade original é
+  restaurada ao desativar a integração.
+- A barra superior agora tem blur próprio, controlado pela opção **Blur no fundo
+  da barra**. Usa os parâmetros globais de blur e acompanha o fade de retorno.
+  O efeito é liberado no Overview, quando a barra está oculta ou seu fundo é
+  completamente opaco; as regras de opacidade automática continuam disponíveis.
+- Diálogos do Shell são identificados por sua estrutura, incluindo subclasses
+  como sair, desligar, reiniciar e outros diálogos modais. A validação abre e
+  cancela os três diálogos de sessão reais em um compositor privado, sem iniciar
+  contagem regressiva nem confirmar ações de energia.
+- Revisados calendário/notificações, configurações rápidas, menus, banners,
+  pastas, Alt+Tab e prévias, OSD e captura de tela. A escolha de cada alvo
+  continua disponível nas preferências.
 
 ## Correções da versão 0.3.2
 

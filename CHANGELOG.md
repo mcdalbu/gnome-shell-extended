@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.3 — 2026-11-11
+
+- Inclui bordas e sombras no fade de entrada e saída do fundo do dock.
+- Restaura a opacidade original do widget de fundo ao desativar a integração.
+- Implementa blur próprio da barra superior com opção dedicada e suspensão no Overview.
+- Evita capturas desnecessárias quando o painel está opaco ou oculto.
+- Corrige a descoberta de subclasses de diálogos, incluindo sair, desligar e reiniciar.
+- Valida os pixels dos três diálogos reais sem countdown nem confirmação de energia.
+- Mantém estável o filtro do dock durante seu fade de decoração.
+
 ## 0.3.2 — 2026-11-11
 
 - Suaviza o fade-in do painel com curva cúbica e mantém a duração de 250 ms.

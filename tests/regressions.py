@@ -7,6 +7,8 @@ import time
 
 
 def run(evaluate, wait, check, screenshot, results, root, output, variant, display_env, log):
+    test_panel_blur(evaluate, wait, check, screenshot, results, output, variant)
+    test_system_dialogs(evaluate, wait, check, screenshot, results, output, variant)
     test_panel_fade(evaluate, wait, check, results)
     # Color scheme changes must work without restarting the extension.
     evaluate("globalThis.interfaceSettings=Gio.Settings.new('org.gnome.desktop.interface');cfg.set_string('panel-style','theme');interfaceSettings.set_string('color-scheme','prefer-dark')")
@@ -118,7 +120,10 @@ def run_dock(evaluate, wait, check, screenshot, results, root, output, variant, 
             evaluate('pointer.notify_absolute_motion(GLib.get_monotonic_time(),Main.layoutManager.primaryMonitor.width/2,Main.layoutManager.primaryMonitor.height-1)')
             wait('realDock.dockState===2', timeout=8)
             check(f'intellihide-hover-{cycle}', 'realDock._slider.slideX>0.99')
-            screenshot('real-dock-visible')
+            # The pixel probe already records native presented frames. Do not
+            # mix an additional offscreen readback into that measurement.
+            if not os.environ.get('GSE_TEST_FLICKER'):
+                screenshot('real-dock-visible')
             evaluate('pointer.notify_absolute_motion(GLib.get_monotonic_time(),500,200)')
             wait('realDock.dockState===0', timeout=8)
             check(f'intellihide-hide-{cycle}', "!ext._manager._slots.get('docks').instance.records.get(realDock)?.binding.surface?.group?.visible")
@@ -136,14 +141,27 @@ def run_dock(evaluate, wait, check, screenshot, results, root, output, variant, 
         # Overview handlers, instead of relying only on the synthetic fixture.
         evaluate("cfg.set_boolean('dock-invisible-overview',true);pointer.notify_absolute_motion(GLib.get_monotonic_time(),Main.layoutManager.primaryMonitor.width/2,Main.layoutManager.primaryMonitor.height-1)")
         wait('realDock.dockState===2')
-        evaluate('Main.overview.show()')
-        wait('Main.overview.visible && !Main.overview.animationInProgress')
-        check('real-dock-overview-background-hidden', 'realDock.dash._background.get_theme_node().get_background_color().alpha===0')
+        evaluate("""globalThis.realDockFadeOutFrames=[];
+            globalThis.dockFadeOutProbe=global.stage.connect('after-paint',()=>{
+                const module=ext._manager._slots.get('docks').instance;
+                realDockFadeOutFrames.push({value:module.fade.value,
+                    backgroundOpacity:realDock.dash._background.opacity,
+                    foreground:realDock.dash.opacity});
+            });Main.overview.show();""")
+        wait("Main.overview.visible && !Main.overview.animationInProgress && ext._manager._slots.get('docks').instance.fade.value===0")
+        evaluate('global.stage.disconnect(dockFadeOutProbe)')
+        out_frames=evaluate('realDockFadeOutFrames')
+        results['real-dock-fade-out-frames']=out_frames
+        assert any(0<f['backgroundOpacity']<255 for f in out_frames), out_frames
+        assert all(abs(f['backgroundOpacity']-255*f['value'])<=1 for f in out_frames), out_frames
+        assert all(f['foreground']==255 for f in out_frames), out_frames
+        check('real-dock-overview-background-hidden', 'realDock.dash._background.get_paint_opacity()===0')
         evaluate("""globalThis.realDockFadeFrames=[];
             globalThis.realDockFadeProbe=global.stage.connect('after-paint',()=>{
                 const module=ext._manager._slots.get('docks').instance;
                 realDockFadeFrames.push({value:module.fade.value,
-                    alpha:realDock.dash._background.get_theme_node().get_background_color().alpha,
+                    alpha:realDock.dash._background.get_theme_node().get_background_color().alpha*realDock.dash._background.get_paint_opacity()/255,
+                    backgroundOpacity:realDock.dash._background.opacity,
                     foreground:realDock.dash.opacity});
             });Main.overview.hide();""")
         wait("!Main.overview.visible && ext._manager._slots.get('docks').instance.fade.value===1")
@@ -153,6 +171,7 @@ def run_dock(evaluate, wait, check, screenshot, results, root, output, variant, 
         alpha=evaluate("cfg.get_double('dock-opacity')*255")
         assert any(0<f['alpha']<alpha for f in frames), frames
         assert all(abs(f['alpha']-alpha*f['value'])<=2 for f in frames), frames
+        assert all(abs(f['backgroundOpacity']-255*f['value'])<=1 for f in frames), frames
         assert all(f['foreground']==255 for f in frames), frames
         evaluate("cfg.set_boolean('dock-invisible-overview',false);pointer.notify_absolute_motion(GLib.get_monotonic_time(),500,200)")
     finally:
@@ -166,6 +185,7 @@ def test_panel_fade(evaluate, wait, check, results):
     wait("Main.overview.visible && !Main.overview.animationInProgress")
     check('panel-overview-custom-style-suspended', "!Main.panel.get_style()?.includes('rgba(') && Main.panel.get_theme_node().get_background_color().alpha===0")
     check('panel-overview-window-tracking-off', "ext._manager._slots.get('panel').instance.tracked===false")
+    check('panel-overview-blur-released', '!bindingFor(Main.panel).surface')
     # Enabling while already in Overview must not flash the configured tint.
     evaluate("cfg.set_boolean('panel-enabled',false);cfg.set_boolean('panel-enabled',true)")
     wait("ext._manager._slots.get('panel')?.instance?.overviewActive")
@@ -177,7 +197,7 @@ def test_panel_fade(evaluate, wait, check, results):
             panelFadeFrames.push({time:panelHiddenAt?(GLib.get_monotonic_time()-panelHiddenAt)/1000:-1,
                 value:panel.fade?.value,returning:!!panel.returning,closing:!!panel.overviewClosing,
                 dockValue:ext._manager._slots.get('docks')?.instance?.fade?.value,
-                dockAlpha:dockBg.get_theme_node().get_background_color().alpha,
+                dockAlpha:dockBg.get_theme_node().get_background_color().alpha*dockBg.get_paint_opacity()/255,
                 dockForeground:dock.opacity,
                 alpha:Main.panel.get_theme_node().get_background_color().alpha,
                 actor:Main.panel.opacity,button:Main.panel.statusArea.dateMenu.opacity});
@@ -244,6 +264,7 @@ def test_surface_pixels(evaluate, wait, screenshot, results, output, variant, bo
     from gi.repository import GdkPixbuf
     evaluate("globalThis.pixelSettings=[cfg.get_double('surface-opacity'),cfg.get_int('blur-radius'),cfg.get_double('blur-brightness')];cfg.set_double('surface-opacity',0.15);cfg.set_int('blur-radius',48);cfg.set_double('blur-brightness',1)")
     wait(f'bindingFor({box})?.surface?.backend')
+
     time.sleep(0.3)
     rect=evaluate(f'(()=>{{const b={box};return [...b.get_transformed_position(),...b.get_transformed_size()]}})()')
     screenshot(name+'-blurred')
@@ -265,3 +286,29 @@ def test_surface_pixels(evaluate, wait, screenshot, results, output, variant, bo
     assert sharp>1 and blurred<sharp*0.9, results[name+'-contrast']
     evaluate("cfg.set_double('surface-opacity',pixelSettings[0]);cfg.set_int('blur-radius',pixelSettings[1]);cfg.set_double('blur-brightness',pixelSettings[2])")
     wait(f'bindingFor({box})?.surface?.backend')
+
+
+def test_panel_blur(evaluate, wait, check, screenshot, results, output, variant):
+    evaluate("globalThis.panelBlurSaved=[cfg.get_double('panel-opacity'),cfg.get_boolean('panel-auto-opacity')];cfg.set_boolean('panel-auto-opacity',false);cfg.set_double('panel-opacity',0.15);cfg.set_boolean('panel-blur',true);for(const child of scene.get_children()){child.y=0;child.height=1000}")
+    wait('bindingFor(Main.panel)?.surface?.backend')
+    test_surface_pixels(evaluate, wait, screenshot, results, output, variant, 'Main.panel', 'panel')
+    check('panel-text-opacity', 'Main.panel.opacity===255 && Main.panel.statusArea.dateMenu.opacity===255')
+    evaluate("cfg.set_double('panel-opacity',1)")
+    wait('!bindingFor(Main.panel)?.surface')
+    check('opaque-panel-releases-blur', '!bindingFor(Main.panel).surface')
+    evaluate("cfg.set_double('panel-opacity',panelBlurSaved[0]);cfg.set_boolean('panel-auto-opacity',panelBlurSaved[1]);for(const child of scene.get_children()){child.y=32;child.height=968}")
+
+
+def test_system_dialogs(evaluate, wait, check, screenshot, results, output, variant):
+    # Open the real private-session dialog UI directly, without OpenAsync's
+    # countdown or any confirmation callback. No shutdown/reboot is requested.
+    for kind, name in [(0, 'logout'), (1, 'shutdown'), (2, 'restart')]:
+        evaluate(f"cfg.set_boolean('blur-dialogs',true);globalThis.systemDialog=Main.endSessionDialog;systemDialog._type={kind};systemDialog._totalSecondsToStayOpen=60;systemDialog._secondsLeft=60;systemDialog._updateButtons();systemDialog.open()")
+        box='(systemDialog.dialogLayout._dialog ?? systemDialog.dialogLayout)'
+        wait(f'bindingFor({box})?.surface?.backend')
+        check(name+'-foreground-opaque', 'systemDialog.contentLayout.opacity===255')
+        check(name+'-no-countdown', '!systemDialog._timerId')
+        test_surface_pixels(evaluate, wait, screenshot, results, output, variant, box, name)
+        evaluate('systemDialog.cancel()')
+        wait('!systemDialog.mapped')
+        check(name+'-surface-released', f'!bindingFor({box})?.surface')

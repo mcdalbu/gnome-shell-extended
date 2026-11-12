@@ -7,7 +7,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Signals} from '../core/render/signals.js';
 import {ResourceScope} from '../core/utils.js';
 import {StyleLease} from '../core/style.js';
-import {childSignal} from '../core/actors.js';
+import {SurfaceBinding, childSignal} from '../core/actors.js';
 
 export default class PanelModule {
     constructor({settings, logger}) {
@@ -33,6 +33,15 @@ export default class PanelModule {
         this.fade = new St.Adjustment({actor: Main.uiGroup, lower: 0, upper: 1,
             value: this.overviewActive ? 0 : 1});
         this.signals.connect(this.fade, 'notify::value', () => this._applyAppearance());
+        this.binding = new SurfaceBinding({box: this.panel, anchor: Main.layoutManager.panelBox,
+            settings: this.settings, logger: this.logger,
+            enabled: () => !this.disabled && !this.overviewActive &&
+                this.settings.get_boolean('panel-blur') && this.settings.get_boolean('blur-enabled') &&
+                this.settings.get_int('blur-radius') > 0 && this.settings.get_string('blur-backend') !== 'off' &&
+                (this.appearance?.alpha ?? 1) < 1,
+            options: {manageStyle: false, opacity: () => this.appearance?.alpha ?? 1,
+                fade: () => this.fade.value},
+        });
         this.interface = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
         this.signals.connect(this.interface, 'changed::color-scheme', () => this.sync(true));
         if (St.Settings.list_properties().some(p => p.name === 'color-scheme'))
@@ -43,7 +52,7 @@ export default class PanelModule {
                 this.signals.connect(box, childSignal(box), this.queue);
         }
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
-            if (key.startsWith('panel-'))
+            if (key.startsWith('panel-') || key.startsWith('blur-') || key === 'update-frequency')
                 this.sync();
         });
         this.signals.connect(St.ThemeContext.get_for_stage(global.stage), 'changed', () => this.sync(true));
@@ -58,6 +67,7 @@ export default class PanelModule {
     }
 
     _restoreAppearance() {
+        this.binding?.sync();
         this.style.restore();
         for (const style of this.foregrounds.values())
             style.restore();
@@ -114,6 +124,7 @@ export default class PanelModule {
         const {color, foreground, alpha} = this.appearance;
         const visibleAlpha = alpha * this.fade.value;
         this.style.set(`background-color: rgba(${color.join(',')},${visibleAlpha}); color: ${foreground}; background-image: none; transition-duration: ${this.returning ? 0 : 150}ms;`);
+        this.binding?.surface?.setFade(this.fade.value);
     }
 
     _watch(window) {
@@ -194,6 +205,7 @@ export default class PanelModule {
             const foreground = light ? '#202024' : '#ffffff';
             this.appearance = {color, foreground, alpha};
             this._applyAppearance();
+            this.binding.sync();
             const visit = (actor, depth) => {
                 if (actor.has_style_class_name?.('panel-button')) {
                     if (!this.foregrounds.has(actor)) {
@@ -220,6 +232,8 @@ export default class PanelModule {
         if (this.disabled)
             return;
         this.disabled = true;
+        this.binding?.destroy(this.panelDestroyed);
+        this.binding = null;
         if (this._returnLater)
             global.compositor.get_laters().remove(this._returnLater);
         this._returnLater = 0;

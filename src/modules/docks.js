@@ -20,10 +20,10 @@ export default class DocksModule {
         this.active = true;
         this.overviewActive = Main.overview.visible;
         this.fade = new St.Adjustment({actor: Main.uiGroup, lower: 0, upper: 1,
-            value: this._invisible() ? 0 : 1});
+            value: this._hideRequested() ? 0 : 1});
         this.signals.connect(this.fade, 'notify::value', () => {
-            for (const {binding} of this.records.values())
-                binding.surface?.setFade(this.fade.value);
+            for (const record of this.records.values())
+                this._applyFade(record);
         });
         this.scan = this.scope.debounce(this.settings.get_int('resize-debounce-ms'), () => this._scan());
         this.signals.connect(Main.uiGroup, childSignal(Main.uiGroup), this.scan);
@@ -31,9 +31,7 @@ export default class DocksModule {
         this.signals.connect(Main.layoutManager, 'monitors-changed', this.scan);
         this.signals.connect(Main.overview, 'showing', () => {
             this.overviewActive = true;
-            this.fade.remove_transition('value');
-            this.fade.value = this._invisible() ? 0 : 1;
-            this.sync();
+            this._animateOverview();
         });
         this.signals.connect(Main.overview, 'hiding', () => this._startReturn());
         this.signals.connect(Main.overview, 'hidden', () => {
@@ -49,7 +47,9 @@ export default class DocksModule {
             });
         });
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
-            if (key.startsWith('dock-') || key.startsWith('blur-') || key === 'update-frequency')
+            if (key === 'dock-invisible-overview')
+                this._animateOverview();
+            else if (key.startsWith('dock-') || key.startsWith('blur-') || key === 'update-frequency')
                 this.sync();
         });
         this._scan();
@@ -59,11 +59,25 @@ export default class DocksModule {
 
     _startReturn() {
         this.overviewActive = false;
+        this._animateOverview();
+    }
+
+    _animateOverview() {
         this.fade.remove_transition('value');
-        this.fade.value = this.settings.get_boolean('dock-invisible-overview') ? 0 : 1;
         this.sync();
-        if (this.fade.value < 1)
-            this.fade.ease(1, {duration: 250, mode: Clutter.AnimationMode.EASE_IN_OUT_CUBIC});
+        const target = this._hideRequested() ? 0 : 1;
+        if (this.fade.value !== target)
+            this.fade.ease(target, {duration: 250, mode: Clutter.AnimationMode.EASE_IN_OUT_CUBIC,
+                onComplete: () => this.sync()});
+    }
+
+    _applyFade(record) {
+        // Only the decorative background fades. Its border, inset shadow and
+        // outline follow the same opacity; icons live in separate dock actors.
+        if (record.appliedOpacity === undefined || record.box.opacity !== record.appliedOpacity)
+            record.originalOpacity = record.box.opacity;
+        record.appliedOpacity = Math.round(record.originalOpacity * this.fade.value);
+        record.box.opacity = record.appliedOpacity;
     }
 
     _scan() {
@@ -90,14 +104,19 @@ export default class DocksModule {
         this.sync();
     }
 
-    _invisible() {
+    _hideRequested() {
         return this.settings.get_boolean('dock-invisible-overview') && this.overviewActive;
+    }
+
+    _invisible() {
+        return this._hideRequested() && this.fade.value === 0;
     }
 
     _watch(actor, box) {
         const signals = new Signals();
         const record = {actor, box, signals, style: new StyleLease(box)};
         this.records.set(actor, record);
+        this._applyFade(record);
         signals.connect(actor, childSignal(actor), this.scan);
         signals.connect(actor, 'destroy', () => this._drop(actor, true));
         signals.connect(box, 'destroy', () => {
@@ -108,14 +127,13 @@ export default class DocksModule {
             settings: this.settings, logger: this.logger,
             enabled: () => this.active && !this._invisible(),
             options: {dock: true, opacity: () => this.settings.get_double('dock-opacity'),
-                blur: () => this.settings.get_boolean('dock-blur'), fade: () => this.fade.value},
+                blur: () => this.settings.get_boolean('dock-blur')},
         });
     }
 
     sync() {
-        if (this.overviewActive)
-            this.fade.value = this._invisible() ? 0 : 1;
         for (const record of this.records.values()) {
+            this._applyFade(record);
             if (this._invisible()) {
                 record.binding.sync();
                 record.style.set('background-color: transparent; background-image: none; box-shadow: none; border-color: transparent;');
@@ -133,8 +151,11 @@ export default class DocksModule {
         this.records.delete(actor);
         record.signals.clear();
         record.binding?.destroy(destroyed);
-        if (!destroyed)
+        if (!destroyed) {
             record.style.restore();
+            if (record.box.opacity === record.appliedOpacity)
+                record.box.opacity = record.originalOpacity;
+        }
     }
 
     disable() {

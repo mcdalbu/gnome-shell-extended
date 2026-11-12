@@ -88,6 +88,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         const panelOptions = dependent(panel, 'panel-enabled', 'Aparência e comportamento',
             'No Overview, o estilo personalizado é suspenso. Ao fechar, apenas o fundo retorna com fade de 250 ms; textos e ícones permanecem opacos.');
         choice(panelOptions, 'panel-style', 'Cor do fundo', ['theme', 'light', 'dark'], ['Do tema', 'Clara', 'Escura']);
+        toggle(panelOptions, 'panel-blur', 'Blur no fundo da barra', 'Usa os parâmetros da aba Blur. Suspenso no Overview e quando o fundo está opaco.');
         toggle(panelOptions, 'panel-auto-opacity', 'Opacidade automática', 'Considera as janelas do workspace no monitor da barra.');
         number(panelOptions, 'panel-opacity', 'Opacidade normal', 0, 1, 0.05);
         number(panelOptions, 'panel-maximized-opacity', 'Com janela maximizada', 0, 1, 0.05);
@@ -99,7 +100,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         const dockOptions = dependent(docks, 'docks-enabled', 'Fundo do dock');
         toggle(dockOptions, 'dock-blur', 'Aplicar blur');
         number(dockOptions, 'dock-opacity', 'Opacidade do fundo', 0, 1, 0.05);
-        toggle(dockOptions, 'dock-invisible-overview', 'Fundo invisível no Overview', 'Mantém ícones e interação disponíveis. Ao fechar, o fundo retorna com fade-in suave de 250 ms.');
+        toggle(dockOptions, 'dock-invisible-overview', 'Fundo invisível no Overview', 'Mantém ícones e interação disponíveis. Fundo, contorno e sombra usam fade de 250 ms ao entrar e sair.');
 
         const shadows = page('icons', 'Ícones', 'starred-symbolic');
         toggle(group(shadows, 'Sombras'), 'shadows-enabled', 'Ativar sombras dos ícones');
@@ -125,7 +126,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         toggle(appOptions, 'opacity-gtk-settings-sidebar', 'Barra lateral do Configurações',
             'Adiciona uma classe CSS via overlay do recurso CcWindow e lançador D-Bus reversível do usuário. Requer gresource e reinício do aplicativo.');
 
-        const maintenance = group(blur, 'Gnome Shell Extended 0.3.2', 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
+        const maintenance = group(blur, 'Gnome Shell Extended 0.3.3', 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
         const reset = new Adw.ActionRow({title: 'Restaurar configurações da extensão'});
         const button = new Gtk.Button({label: 'Restaurar', valign: Gtk.Align.CENTER});
         button.connect('clicked', () => {
