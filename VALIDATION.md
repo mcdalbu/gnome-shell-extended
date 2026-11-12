@@ -1,4 +1,4 @@
-# Validação — Gnome Shell Extended 0.3.7
+# Validação — Gnome Shell Extended 0.3.8
 
 Data: 12 de novembro de 2026, America/Fortaleza.
 
@@ -8,20 +8,18 @@ GNOME Shell/Mutter 51.1 (Fedora 45), GJS 1.90.1, Wayland headless, GBM/EGL com
 driver xe. D-Bus, configurações e extensões de teste ficam em diretórios XDG
 privados. A sessão de trabalho do usuário não foi modificada.
 
-`make test` valida 28 módulos ESModule, metadata, esquema estrito, 46 opções
+`make test` valida 29 módulos ESModule, metadata, esquema estrito, 46 opções
 GSettings, lifecycle/imports assíncronos, descarte de recursos, restauração de
 CSS/launcher do Configurações e perfis Ptyxis.
 
-## Extensão da barra superior em 1 px
+## Remoção da lacuna entre painel e janela maximizada
 
-`make test` e a suíte headless completa passaram em 12 de novembro de 2026.
-Evidências: `validation/single-results.json` e `validation/single-panel-extended-bottom.png`.
-
-- Fundo e blur ganham exatamente 1 pixel lógico na borda inferior.
-- A faixa pintada foi confirmada por leitura dos pixels, inclusive com blur desligado e fundo opaco.
-- Geometria dos indicadores e área reservada às janelas permanecem iguais.
-- A faixa desaparece no Overview, retorna ao fechar e é ocultada ao desativar a opção.
-- Preferências, suspensão do blur, restauração e dez ciclos de ativação/desativação: PASS.
+- Suíte headless completa em escala 100% e dois monitores com 125%/150%: PASS.
+- O tema padrão medido reserva exatamente a altura do painel (32 px); nesse caso a opção não altera a reserva.
+- Fixture de tema com `padding-bottom: 1px` no panelBox reproduz uma reserva de 33 px para painel de 32 px. Com a opção ativa, a janela maximizada real começa em y=32, sem alterar o tamanho do painel ou adicionar faixa pintada.
+- Desativar restaura a reserva e o posicionamento originais. A geometria das janelas normais é preservada.
+- Desativar o módulo restaura a reserva nativa e remove o ator transparente de reserva. Preferências, demais superfícies e dez ciclos de ativação/desativação: PASS.
+- Evidências: `validation/single-results.json` e `validation/single-panel-gap-maximized.png`. A lacuna do desktop do usuário ainda precisa ser conferida após carregar a atualização; este teste cobre reserva excessiva, não bordas desenhadas pelo aplicativo.
 
 ## Regressões verificadas
 

@@ -202,10 +202,10 @@
       <summary>Selective opacity: ptyxis</summary>
       <description>Optional application-side integration. Restart the application after changing GTK CSS. Settings uses a reversible CcWindow resource overlay and user D-Bus launcher.</description>
     </key>
-    <key name="panel-extend-bottom" type="b">
+    <key name="panel-remove-gap" type="b">
       <default>false</default>
-      <summary>Extend the top panel background down by one logical pixel</summary>
-      <description>Covers the bottom gap with background and blur without moving panel contents or changing the window work area. Suspended in Overview.</description>
+      <summary>Remove the gap between the panel and maximized windows</summary>
+      <description>Reserves space only up to the painted bottom edge of the panel, rounding down to logical pixels. Maximized windows meet the panel without extending its background.</description>
     </key>
     <key name="panel-blur" type="b">
       <default>true</default>

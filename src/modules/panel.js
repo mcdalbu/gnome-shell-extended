@@ -8,6 +8,7 @@ import {Signals} from '../core/render/signals.js';
 import {ResourceScope} from '../core/utils.js';
 import {StyleLease} from '../core/style.js';
 import {SurfaceBinding, childSignal} from '../core/actors.js';
+import {PanelGap} from '../core/panelGap.js';
 
 export default class PanelModule {
     constructor({settings, logger}) {
@@ -26,17 +27,7 @@ export default class PanelModule {
             this.disable();
         });
         this.style = new StyleLease(this.panel);
-        // Paint the extra row as a sibling, outside the panel's layout and
-        // input region. This also works when panel blur is disabled or opaque.
-        this.bottomExtension = new St.Widget({name: 'gse-panel-bottom-extension', reactive: false});
-        Main.layoutManager.panelBox.get_parent().insert_child_above(this.bottomExtension, Main.layoutManager.panelBox);
-        this.signals.connect(this.bottomExtension, 'destroy', () => {
-            this.bottomExtension = null;
-        });
-        for (const actor of [this.panel, Main.layoutManager.panelBox]) {
-            for (const property of ['allocation', 'mapped', 'opacity'])
-                this.signals.connect(actor, `notify::${property}`, () => this._syncBottomExtension());
-        }
+        this.gap = new PanelGap(this.panel, this.settings);
         this.overviewActive = Main.overview.visible;
         this.overviewClosing = this.overviewActive && !Main.overview.visibleTarget;
         // Use the same frame-clock owner as the dock, including mixed-scale
@@ -51,7 +42,6 @@ export default class PanelModule {
                 this.settings.get_int('blur-radius') > 0 && this.settings.get_string('blur-backend') !== 'off' &&
                 (this.appearance?.alpha ?? 1) < 1,
             options: {manageStyle: false, opacity: () => this.appearance?.alpha ?? 1,
-                extraBottom: () => this.settings.get_boolean('panel-extend-bottom') ? 1 : 0,
                 fade: () => this.fade.value},
         });
         this.interface = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
@@ -80,7 +70,6 @@ export default class PanelModule {
     }
 
     _restoreAppearance() {
-        this.bottomExtension?.hide();
         this.binding?.sync();
         this.style.restore();
         for (const style of this.foregrounds.values())
@@ -172,7 +161,6 @@ export default class PanelModule {
         if (this.disabled || (this.overviewActive && !this.overviewOpening))
             return;
         if (this.returnPending) {
-            this.bottomExtension?.hide();
             this.style.set('background-color: transparent; background-image: none; transition-duration: 0ms;');
             for (const style of this.foregrounds.values())
                 style.restore();
@@ -197,42 +185,10 @@ export default class PanelModule {
         }
         this.currentForeground = foreground;
         this.renderedAppearance = {color, foreground, alpha: visibleAlpha};
-        this._syncBottomExtension();
         this.style.set(`background-color: rgba(${color.join(',')},${visibleAlpha}); color: ${foreground}; background-image: none; transition-duration: ${this.returning || this.overviewOpening ? 0 : 150}ms;`);
         for (const style of this.foregrounds.values())
             style.set(`color: ${foreground};`);
         this.binding?.surface?.setFade(this.fade.value);
-    }
-
-    _syncBottomExtension() {
-        const strip = this.bottomExtension;
-        if (!strip)
-            return;
-        const visible = !this.disabled && this.panel.mapped && !this.returnPending &&
-            (!this.overviewActive || this.overviewOpening) &&
-            this.settings.get_boolean('panel-extend-bottom') && this.renderedAppearance;
-        if (!visible) {
-            strip.hide();
-            return;
-        }
-        const [x, y] = this.panel.get_transformed_position();
-        const [width, height] = this.panel.get_transformed_size();
-        const parent = strip.get_parent();
-        const [ok, left, top] = parent.transform_stage_point(x, y + height);
-        const [end, right, bottom] = parent.transform_stage_point(x + width, y + height + 1);
-        if (!ok || !end || ![left, top, right, bottom].every(Number.isFinite) || right <= left || bottom <= top) {
-            strip.hide();
-            return;
-        }
-        strip.set_position(left, top);
-        strip.set_size(right - left, bottom - top);
-        strip.opacity = Math.min(255, Math.round(255 * this.panel.get_paint_opacity() /
-            Math.max(1, parent.get_paint_opacity())));
-        const {color, alpha} = this.renderedAppearance;
-        const style = `background-color: rgba(${color.join(',')},${alpha}); transition-duration: ${this.returning || this.overviewOpening ? 0 : 150}ms;`;
-        if (strip.get_style() !== style)
-            strip.set_style(style);
-        strip.show();
     }
 
     _watch(window) {
@@ -345,6 +301,8 @@ export default class PanelModule {
         if (this.disabled)
             return;
         this.disabled = true;
+        this.gap?.destroy();
+        this.gap = null;
         this.binding?.destroy(this.panelDestroyed);
         this.binding = null;
         if (this._returnLater)
@@ -352,8 +310,6 @@ export default class PanelModule {
         this._returnLater = 0;
         this.fade?.remove_transition('value');
         this.signals.clear();
-        this.bottomExtension?.destroy();
-        this.bottomExtension = null;
         this.fade?.run_dispose();
         this.fade = null;
         this.tracking.clear();

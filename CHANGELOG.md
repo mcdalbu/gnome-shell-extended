@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.8 — 2026-11-12
+
+- Substitui a extensão visual de 1 px por **Remover lacuna entre a barra e janelas maximizadas**.
+- Corrige a reserva do painel no layout do Mutter, sem aumentar o painel ou mover diretamente as janelas.
+- Restaura o comportamento original ao desativar a opção ou o módulo.
+
 ## 0.3.7 — 2026-11-12
 
 - Adiciona a opção de estender o fundo da barra superior em 1 px para cobrir a lacuna inferior.

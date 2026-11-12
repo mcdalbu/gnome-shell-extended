@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **0.3.7**.
+preferências GTK4/Libadwaita. Versão **0.3.8**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -34,12 +34,15 @@ GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e o
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
 
-## Novidade da versão 0.3.7
+## Correção da versão 0.3.8
 
-Na aba **Painel**, ative **Estender o fundo em 1 px** para cobrir a lacuna
-inferior da barra com um pixel lógico de fundo e blur. A opção vem desativada
-e não move os indicadores nem altera a área reservada às janelas. Funciona
-também com blur desligado e fundo opaco; é suspensa no Overview.
+Na aba **Painel**, ative **Remover lacuna entre a barra e janelas maximizadas**.
+O ajuste substitui a opção de estender o fundo: corrige o espaço reservado à
+barra para que o Mutter posicione as janelas maximizadas junto à sua borda
+inferior. O painel mantém suas dimensões, sem faixa adicional de fundo ou blur.
+A opção vem desativada por padrão e restaura a reserva original ao desativar.
+Em escala fracionária, a reserva usa a borda inferior arredondada para baixo
+em pixels lógicos, evitando uma linha descoberta por arredondamento.
 
 ## Correções da versão 0.3.6
 

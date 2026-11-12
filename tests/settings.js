@@ -15,7 +15,7 @@ for (const key of schema.list_keys()) {
     assert(descriptor.range_check(descriptor.get_default_value()), `Invalid default: ${key}`);
     assert(settings.get_value(key).equal(descriptor.get_default_value()), `Unexpected value: ${key}`);
 }
-assert(!settings.get_boolean('panel-extend-bottom'), 'Extra panel row defaults to disabled');
+assert(!settings.get_boolean('panel-remove-gap'), 'Panel gap correction defaults to disabled');
 assert(settings.get_boolean('blur-enabled'), 'Shell blur defaults to enabled');
 assert(!settings.get_boolean('opacity-enabled'), 'Application modifications require opting in');
 assert(settings.get_int('update-frequency') === 0, 'Default frequency must follow compositor');

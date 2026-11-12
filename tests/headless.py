@@ -217,8 +217,6 @@ def test():
             from regressions import test_menu_close
             test_menu_close(evaluate, wait, check, results)
         check('panel-style', "Main.panel.get_style().includes('rgba(')")
-        from panel_extension import test_panel_extension
-        test_panel_extension(evaluate, wait, check, screenshot)
         evaluate("globalThis.bindingFor=box=>box===Main.panel?ext._manager._slots.get('panel')?.instance?.binding:[...ext._manager._slots.get('blur').instance.bindings.values()].find(b=>b.box===box); cfg.set_boolean('blur-dialogs',true);cfg.set_boolean('blur-osd',true);cfg.set_boolean('blur-screenshot',true);cfg.set_boolean('blur-menus',true)")
         evaluate("(async()=>{globalThis.DialogModule=await import('resource:///org/gnome/shell/ui/modalDialog.js');globalThis.PopupModule=await import('resource:///org/gnome/shell/ui/popupMenu.js');globalThis.Clutter=(await import('gi://Clutter')).default;})()")
         wait('globalThis.DialogModule && globalThis.PopupModule && globalThis.Clutter')
@@ -386,6 +384,8 @@ def test():
             evaluate("globalThis.policyWindow=global.get_window_actors().find(a=>a.meta_window.get_title()==='GSE policy test').meta_window;policyWindow.maximize()")
             wait("Main.panel.get_style().includes(',1);')")
             check('panel-maximized-policy', 'policyWindow.maximized_horizontally && policyWindow.maximized_vertically')
+            from panel_gap import test_panel_gap
+            test_panel_gap(evaluate, wait, check, screenshot, results)
             evaluate('policyWindow.make_fullscreen()')
             wait("Main.panel.get_style().includes(',0);')")
             check('panel-fullscreen-policy', 'policyWindow.is_fullscreen()')
