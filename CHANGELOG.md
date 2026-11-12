@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.7 — 2026-11-12
+
+- Adiciona a opção de estender o fundo da barra superior em 1 px para cobrir a lacuna inferior.
+- Estende fundo e blur sem deslocar indicadores ou alterar a área de trabalho das janelas.
+- Preserva opacidade automática, fades e suspensão no Overview; funciona com blur desativado.
+
 ## 0.3.6 — 2026-11-12
 
 - Inicia o fade de retorno da barra após o Overview fechar, em vez de concluí-lo durante o fechamento.

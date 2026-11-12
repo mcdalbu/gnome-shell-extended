@@ -166,6 +166,7 @@ def test():
             'await new Promise((resolve,reject)=>stream.close_async(GLib.PRIORITY_DEFAULT,null,(s,r)=>{try{resolve(s.close_finish(r))}catch(e){reject(e)}}));'
             'globalThis.gseCapture=true;})()')
         wait('gseCapture')
+        return path
 
     try:
         wait(f'Main.extensionManager.lookup({json.dumps(UUID)})?.state === 1')
@@ -216,6 +217,8 @@ def test():
             from regressions import test_menu_close
             test_menu_close(evaluate, wait, check, results)
         check('panel-style', "Main.panel.get_style().includes('rgba(')")
+        from panel_extension import test_panel_extension
+        test_panel_extension(evaluate, wait, check, screenshot)
         evaluate("globalThis.bindingFor=box=>box===Main.panel?ext._manager._slots.get('panel')?.instance?.binding:[...ext._manager._slots.get('blur').instance.bindings.values()].find(b=>b.box===box); cfg.set_boolean('blur-dialogs',true);cfg.set_boolean('blur-osd',true);cfg.set_boolean('blur-screenshot',true);cfg.set_boolean('blur-menus',true)")
         evaluate("(async()=>{globalThis.DialogModule=await import('resource:///org/gnome/shell/ui/modalDialog.js');globalThis.PopupModule=await import('resource:///org/gnome/shell/ui/popupMenu.js');globalThis.Clutter=(await import('gi://Clutter')).default;})()")
         wait('globalThis.DialogModule && globalThis.PopupModule && globalThis.Clutter')

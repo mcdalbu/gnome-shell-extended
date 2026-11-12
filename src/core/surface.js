@@ -278,7 +278,8 @@ export class Surface {
         const [w, h] = this.box.get_transformed_size();
         const parent = this.group.get_parent();
         const [ok, left, top] = parent.transform_stage_point(x, y);
-        const [end, right, bottom] = parent.transform_stage_point(x + w, y + h);
+        const extraBottom = this.options.extraBottom?.() ?? 0;
+        const [end, right, bottom] = parent.transform_stage_point(x + w, y + h + extraBottom);
         if (!ok || !end || ![left, top, right, bottom].every(Number.isFinite) || w <= 0 || h <= 0)
             return;
         const geometry = [left - this.group.x, top - this.group.y, right - left, bottom - top];

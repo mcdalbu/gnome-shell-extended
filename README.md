@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **0.3.6**.
+preferências GTK4/Libadwaita. Versão **0.3.7**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -33,6 +33,13 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
+
+## Novidade da versão 0.3.7
+
+Na aba **Painel**, ative **Estender o fundo em 1 px** para cobrir a lacuna
+inferior da barra com um pixel lógico de fundo e blur. A opção vem desativada
+e não move os indicadores nem altera a área reservada às janelas. Funciona
+também com blur desligado e fundo opaco; é suspensa no Overview.
 
 ## Correções da versão 0.3.6
 

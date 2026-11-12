@@ -1,4 +1,4 @@
-# Validação — Gnome Shell Extended 0.3.6
+# Validação — Gnome Shell Extended 0.3.7
 
 Data: 12 de novembro de 2026, America/Fortaleza.
 
@@ -8,9 +8,20 @@ GNOME Shell/Mutter 51.1 (Fedora 45), GJS 1.90.1, Wayland headless, GBM/EGL com
 driver xe. D-Bus, configurações e extensões de teste ficam em diretórios XDG
 privados. A sessão de trabalho do usuário não foi modificada.
 
-`make test` valida 28 módulos ESModule, metadata, esquema estrito, 45 opções
+`make test` valida 28 módulos ESModule, metadata, esquema estrito, 46 opções
 GSettings, lifecycle/imports assíncronos, descarte de recursos, restauração de
 CSS/launcher do Configurações e perfis Ptyxis.
+
+## Extensão da barra superior em 1 px
+
+`make test` e a suíte headless completa passaram em 12 de novembro de 2026.
+Evidências: `validation/single-results.json` e `validation/single-panel-extended-bottom.png`.
+
+- Fundo e blur ganham exatamente 1 pixel lógico na borda inferior.
+- A faixa pintada foi confirmada por leitura dos pixels, inclusive com blur desligado e fundo opaco.
+- Geometria dos indicadores e área reservada às janelas permanecem iguais.
+- A faixa desaparece no Overview, retorna ao fechar e é ocultada ao desativar a opção.
+- Preferências, suspensão do blur, restauração e dez ciclos de ativação/desativação: PASS.
 
 ## Regressões verificadas
 
