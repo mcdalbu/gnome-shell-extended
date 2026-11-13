@@ -249,6 +249,12 @@ janelas são compartilhados e só invalidam superfícies próximas do dano.
 Redraw completo é habilitado temporariamente durante um frame existente que
 precisa de amostragem BACKGROUND; ele não inicia um loop de frames.
 
+No Fedora 45/Mutter 51, use a [biblioteca opcional `6.local` ou mais recente](https://github.com/mcdalbu/gnome-rounded-blur-rpm/releases/tag/v1.0.2-6.local.fc45)
+para limitar capturas sem o loop de redraw em repouso observado com vários
+efeitos na mesma view. A correção está na biblioteca; não exige trocar a
+versão da extensão. O benchmark reproduzível está em `tests/benchmark.py`;
+`GSE_BENCH_CHECK_IDLE=1` também verifica repouso antes/depois da animação.
+
 O backend nativo usa `Shell.BlurEffect`. O modo BACKGROUND depende do conteúdo
 abaixo da superfície; não oferece cache estático garantido nem limitação de
 frequência. Overview/bloqueio usam ACTOR no papel de parede para permitir cache
