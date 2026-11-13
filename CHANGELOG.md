@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0 — 2026-11-13
+
+Primeira versão 1.0 estável, baseada na 0.3.11, sem alterações funcionais.
+
 ## 0.3.11 — 2026-11-13
 
 Promove a versão 0.3.11-beta.1, preservando seu código de execução.

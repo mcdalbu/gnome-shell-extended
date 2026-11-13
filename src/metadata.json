@@ -12,8 +12,8 @@
     "50",
     "51"
   ],
-  "version": 14,
-  "version-name": "0.3.11",
+  "version": 15,
+  "version-name": "1.0.0",
   "settings-schema": "org.gnome.shell.extensions.gnome-shell-extended",
   "session-modes": [
     "user",
