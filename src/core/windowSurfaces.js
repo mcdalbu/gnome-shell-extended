@@ -111,11 +111,8 @@ export class WindowSurfaces {
         this._signals.connect(this._context, 'notify::scale-factor', () => this.sync());
         this._signals.connect(Main.layoutManager, 'monitors-changed', () => {
             for (const state of this._windows.values()) {
-                for (const capture of state.captures.values())
-                    capture.actor.destroy();
-                state.captures.clear();
-                state.capture = null;
-                state.effect = null;
+                this._cancelRelease(state);
+                this._releaseCaptures(state);
             }
             this._refreshAll();
             this._queueUpdate();
@@ -409,6 +406,23 @@ export class WindowSurfaces {
         return components !== undefined && components === Cogl.TextureComponents?.RGB;
     }
 
+    _cancelRelease(state) {
+        if (state.releaseId)
+            GLib.Source.remove(state.releaseId);
+        state.releaseId = 0;
+    }
+
+    _releaseCaptures(state) {
+        for (const {actor, effect} of state.captures.values()) {
+            actor.remove_effect(effect);
+            effect.run_dispose();
+            actor.destroy();
+        }
+        state.captures.clear();
+        state.capture = null;
+        state.effect = null;
+    }
+
     _hide(state) {
         this._visible.delete(state);
         state.revealFrom = undefined;
@@ -416,6 +430,16 @@ export class WindowSurfaces {
         if (state.reveal)
             state.reveal.value = 0;
         state.blur?.hide();
+        // Keep a short warm cache for Overview/workspace toggles, then release
+        // textures for minimized or otherwise inactive windows.
+        if (state.captures.size && !state.releaseId && this._windows.has(state.actor)) {
+            state.releaseId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 5, () => {
+                state.releaseId = 0;
+                if (!this._visible.has(state))
+                    this._releaseCaptures(state);
+                return GLib.SOURCE_REMOVE;
+            });
+        }
         if (state.source) {
             state.actor.remove_effect(state.source);
             state.source.run_dispose();
@@ -464,6 +488,7 @@ export class WindowSurfaces {
             (parent === global.window_group || parent === global.top_window_group);
         if (!enabled)
             return this._hide(state);
+        this._cancelRelease(state);
         const wasVisible = this._visible.has(state);
         const reveal = !wasVisible || state.revealFrom !== undefined;
         const revealFrom = wasVisible ? state.revealFrom : 0;
@@ -514,6 +539,7 @@ export class WindowSurfaces {
         const state = this._windows.get(actor);
         if (!state)
             return;
+        this._cancelRelease(state);
         this._windows.delete(actor);
         this._dirty.delete(state);
         this._damage.delete(state);
@@ -521,12 +547,7 @@ export class WindowSurfaces {
         state.signals.clear();
         state.reveal?.run_dispose();
         state.reveal = null;
-        for (const {actor: capture, effect} of state.captures.values()) {
-            capture.remove_effect(effect);
-            effect.run_dispose();
-            capture.destroy();
-        }
-        state.captures.clear();
+        this._releaseCaptures(state);
         if (state.blur && state.clip) {
             state.blur.remove_effect(state.clip);
             state.clip.run_dispose();

@@ -49,6 +49,7 @@ export class Surface {
             });
             this.signals.connect(St.ThemeContext.get_for_stage(global.stage), 'changed', () => this.update());
             this.signals.connect(box, 'style-changed', () => {
+                this._cornerRadius = undefined;
                 // Dock theming temporarily clears its inline style to read the
                 // theme. Do not reapply our style inside that native operation.
                 if (this.style && !this._destroyed && !this._styling && this.box.get_style() !== this.style.applied && !this._appearanceLater) {
@@ -198,6 +199,7 @@ export class Surface {
     update() {
         if (this._destroyed)
             return;
+        this._cornerRadius = undefined;
         this._baseAlpha = this.options.opacity?.() ?? this.settings.get_double('surface-opacity');
         this._alpha = this._baseAlpha * (this.options.fade?.() ?? 1);
         this._radius = this.settings.get_int('blur-radius');
@@ -289,8 +291,11 @@ export class Surface {
             this.blur.set_size(geometry[2], geometry[3]);
             this._repaintEffects();
         }
-        const node = this.box.get_theme_node();
-        const radius = Math.max(...[0, 1, 2, 3].map(corner => node.get_border_radius(corner)));
+        if (this._cornerRadius === undefined) {
+            const node = this.box.get_theme_node();
+            this._cornerRadius = Math.max(...[0, 1, 2, 3].map(corner => node.get_border_radius(corner)));
+        }
+        const radius = this._cornerRadius;
         this.clip.radius = Math.min(radius * geometry[2] / Math.max(1, this.box.width), geometry[2] / 2, geometry[3] / 2);
     }
 

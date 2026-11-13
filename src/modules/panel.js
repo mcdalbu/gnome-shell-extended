@@ -51,7 +51,10 @@ export default class PanelModule {
         this.queue = this.scope.debounce(this.settings.get_int('resize-debounce-ms'), () => this.sync());
         for (const box of [this.panel._leftBox, this.panel._centerBox, this.panel._rightBox]) {
             if (box)
-                this.signals.connect(box, childSignal(box), this.queue);
+                this.signals.connect(box, childSignal(box), () => {
+                    this._buttonsDirty = true;
+                    this.queue();
+                });
         }
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
             if (key.startsWith('panel-') || key.startsWith('blur-') || key === 'update-frequency')
@@ -197,7 +200,7 @@ export default class PanelModule {
         const signals = new Signals();
         this.windows.set(window, signals);
         for (const signal of ['notify::maximized-horizontally', 'notify::maximized-vertically',
-            'notify::fullscreen', 'notify::minimized', 'workspace-changed', 'position-changed'])
+            'notify::fullscreen', 'notify::minimized', 'workspace-changed'])
             signals.connect(window, signal, this.queue);
         signals.connect(window, 'unmanaged', () => {
             signals.clear();
@@ -272,6 +275,19 @@ export default class PanelModule {
                     !light && this.color.every(c => c > 180) ? [25, 25, 28] : this.color;
             const alpha = this.settings.get_double(key);
             const foreground = light ? '#202024' : '#ffffff';
+            // A window event often leaves the panel unchanged. Do not restart
+            // style/layout/capture work in that case. Theme and child changes
+            // still need a full pass, as do Overview transition boundaries.
+            const signature = JSON.stringify([color, foreground, alpha,
+                this.settings.get_boolean('panel-blur'), this.settings.get_boolean('blur-enabled'),
+                this.settings.get_int('blur-radius'), this.settings.get_double('blur-brightness'),
+                this.settings.get_string('blur-backend'), this.settings.get_int('update-frequency'),
+                this.overviewActive, this.overviewOpening, this.overviewClosing,
+                this.returnPending, this.returning]);
+            if (!themeChanged && !this._buttonsDirty && signature === this._appearanceSignature)
+                return;
+            this._appearanceSignature = signature;
+            this._buttonsDirty = false;
             this.appearance = {color, foreground, alpha};
             this._applyAppearance();
             this.binding.sync();

@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **0.3.10**.
+preferências GTK4/Libadwaita. Versão **0.3.11**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -33,6 +33,17 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
+
+## Novidades da versão 0.3.11
+
+Promove a versão 0.3.11-beta.1, preservando seu código de execução.
+
+- Evita sincronizações redundantes do painel e atualizações de aparência sem mudanças.
+- Mantém um cache do raio dos cantos do tema, invalidado quando o estilo muda.
+- Libera capturas de janelas ocultas após aproximadamente 5 segundos e cancela a liberação ao reexibir.
+- Descarta capturas fora do monitor e libera os efeitos antes das capturas em mudanças de monitores.
+- Mantém a proteção contra redraws recortados e a captura integral das janelas.
+- Inclui o benchmark isolado de CPU/GPU e verificações de redraw em repouso já presentes no repositório.
 
 ## Novidades da versão 0.3.10
 

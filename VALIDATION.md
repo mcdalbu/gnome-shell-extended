@@ -1,4 +1,18 @@
-# Validação — Gnome Shell Extended 0.3.10
+# Validação — Gnome Shell Extended 0.3.11
+
+## Publicação 0.3.11 — 2026-11-13
+
+Código de execução promovido da 0.3.11-beta.1, sem alterações funcionais adicionais.
+`make zip` passou: sintaxe de 29 módulos, schema estrito, lifecycle,
+46 configurações e testes de restauração das integrações.
+`/usr/bin/python3 tests/headless.py` passou em GNOME Shell 51.1, compositor
+Wayland e D-Bus privados (`validation/single-results.json`, `passed: true`).
+A matriz verificou superfícies, políticas do painel, correção de lacuna,
+repouso (zero frames) e limpeza/restauração na desativação.
+O código foi comparado byte a byte com a beta-1 fornecida, exceto metadata.json.
+Não foram refeitos nesta publicação os testes de escalas mistas, hotplug,
+retenção de janela oculta por 5 segundos ou benchmarks de CPU/GPU/RAM.
+As evidências abaixo documentam validações anteriores da base.
 
 Data: 12 de novembro de 2026, America/Fortaleza.
 

@@ -37,6 +37,23 @@ export function updateCaptureAppearance(state, radiusProperty, radius, brightnes
     }
 }
 
+export function pruneCaptures(state, x, y, width, height) {
+    for (const [view, capture] of state.captures) {
+        const r = view.layout;
+        if (x < r.x + r.width && x + width > r.x && y < r.y + r.height && y + height > r.y)
+            continue;
+        capture.actor.remove_effect(capture.effect);
+        capture.effect.run_dispose();
+        capture.actor.destroy();
+        state.captures.delete(view);
+    }
+    const first = state.captures.values().next().value;
+    state.capture = first?.actor ?? null;
+    state.effect = first?.effect ?? null;
+    for (const capture of state.captures.values())
+        capture.onlyView.primary = capture === first;
+}
+
 export function syncBackdropCapture(state, view, backend, radiusProperty, radius, brightness, rate, owner = null, geometryRadius = radius) {
     // A view owns a physical-pixel sampling grid and its own effect/cache.
     // Sharing a logical grid, or changing one capture between differently
@@ -48,6 +65,7 @@ export function syncBackdropCapture(state, view, backend, radiusProperty, radius
     }
     const [x, y] = state.blur.get_transformed_position();
     const [width, height] = state.blur.get_transformed_size();
+    pruneCaptures(state, x, y, width, height);
     const scaleX = width / state.blur.width;
     const scaleY = height / state.blur.height;
     if (!(scaleX > 0 && scaleY > 0))
@@ -70,7 +88,7 @@ export function syncBackdropCapture(state, view, backend, radiusProperty, radius
             ? state.effect : new backend.BlurEffect({mode: backend.BlurMode.BACKGROUND});
         actor.add_effect_with_name('gse-backdrop-blur', effect);
         state.blur.add_child(actor);
-        capture = {actor, effect, view};
+        capture = {actor, effect, view, onlyView};
         state.captures.set(view, capture);
         state.capture ??= actor;
         state.effect ??= effect;

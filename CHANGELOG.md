@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.11 — 2026-11-13
+
+Promove a versão 0.3.11-beta.1, preservando seu código de execução.
+
+- Evita sincronizações redundantes do painel e atualizações de aparência sem mudanças.
+- Mantém um cache do raio dos cantos do tema, invalidado quando o estilo muda.
+- Libera capturas de janelas ocultas após aproximadamente 5 segundos e cancela a liberação ao reexibir.
+- Descarta capturas fora do monitor e libera os efeitos antes das capturas em mudanças de monitores.
+- Mantém a proteção contra redraws recortados e a captura integral das janelas.
+- Inclui o benchmark isolado de CPU/GPU e verificações de redraw em repouso já presentes no repositório.
+
 ## 0.3.10 — 2026-11-12
 
 - Adiciona fade-in de 250 ms ao blur de janelas ao mostrar, restaurar ou trazê-las de trás de outra janela.
