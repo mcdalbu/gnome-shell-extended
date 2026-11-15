@@ -308,6 +308,12 @@ gnome-shell-extended/
 
 ## Arquitetura e recursos
 
+Veja a [comparação de Box e Gaussian com três/quatro iterações](https://github.com/mcdalbu/gnome-shell-extended/blob/main/BENCHMARK-ITERATIONS.md),
+com metodologia, medianas, faixas e dados brutos. Nesta cena a 100%, as faixas
+de uso de GPU se sobrepõem; o ensaio não estabelece vantagem garantida nem
+economia de energia para um método. O [benchmark de aparência da 1.5.1](https://github.com/mcdalbu/gnome-shell-extended/blob/main/BENCHMARK.md)
+fica como referência histórica, com algoritmo Gaussian e condições diferentes.
+
 Cada módulo é importado somente quando sua chave de ativação é solicitada.
 O gerenciador isola falhas parciais e invalida imports pendentes durante o
 desligamento. `enable()`/`disable()` dos módulos são síncronos; os carregamentos

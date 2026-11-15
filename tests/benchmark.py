@@ -23,6 +23,16 @@ if os.environ.get('GSE_BENCH_ONLY'):
     CASES = [case for case in CASES if f'{case[0]}:{case[1]}' == os.environ['GSE_BENCH_ONLY']]
 
 
+def parse_drm_counter(key, value):
+    parts = value.strip().split()
+    if key.startswith('drm-resident-'):
+        # fdinfo can switch units as allocations change. Normalize memory to
+        # KiB before read_process converts the aggregate to MiB.
+        unit = parts[1] if len(parts)>1 else 'KiB'
+        return float(parts[0])*{'B':1/1024,'KiB':1,'MiB':1024,'GiB':1024*1024}[unit]
+    return int(parts[0])
+
+
 def read_process(pid):
     stat = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()
     status = dict(line.split(':', 1) for line in Path(f'/proc/{pid}/status').read_text().splitlines() if ':' in line)
@@ -38,7 +48,7 @@ def read_process(pid):
         identity = (fields.get('drm-pdev', '').strip(), fields['drm-client-id'].strip())
         if identity in clients:
             continue
-        clients[identity] = {k: int(v.strip().split()[0]) for k, v in fields.items()
+        clients[identity] = {k: parse_drm_counter(k,v) for k, v in fields.items()
                              if k.startswith(('drm-cycles-', 'drm-total-cycles-', 'drm-resident-'))}
     return {'t': time.monotonic(), 'cpu': (int(stat[11]) + int(stat[12])) / os.sysconf('SC_CLK_TCK'),
             'rss_mib': int(status['VmRSS'].split()[0]) / 1024,
