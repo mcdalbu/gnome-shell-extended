@@ -1,3 +1,36 @@
+# Validação — Gnome Shell Extended 1.5.2
+
+## Primeira linha do painel — 2026-11-15
+
+Reproduzida uma linha sem blur no topo do painel real em GNOME Shell/Mutter
+51.1. O retângulo compartilhado de captura usa um inset subpixel; arredondar
+seus limites para dentro no efeito de vidro descartava o primeiro pixel do
+framebuffer. A cópia agora arredonda para fora, limitada ao framebuffer;
+o scissor e a cobertura do shader continuam limitando a superfície pintada.
+
+- Antes: sobre fundo branco e brilho de 50%, a primeira linha mediu 209 no
+  canal vermelho, contra 107 nas linhas seguintes e no centro do painel.
+- Depois: as três primeiras linhas e o centro mediram 107, tanto na screenshot
+  quanto no framebuffer apresentado, com Box blur e Fast Gaussian Blur.
+- Suítes completas a 100% e com monitores a 125%/150% aprovadas; o teste do
+  painel usa a view primária a 125% e a screenshot em escala 150% nesta matriz.
+- Cantos do dock com Box e Gaussian 5/9/13, transparência sem blur, primeiro
+  plano opaco, políticas do painel, restauração e dez ciclos de ativação/
+  desativação aprovados. Nenhum erro JS ou shader nos logs; zero frames em repouso.
+
+```sh
+make build
+GSE_TEST_PANEL_EDGE=1 GSE_TEST_DOCK_CORNERS=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_PANEL_EDGE=1 GSE_TEST_DOCK_CORNERS=1 GSE_TEST_MULTI=1 /usr/bin/python3 tests/headless.py
+make zip
+```
+
+Evidências: `validation/panel-edge-before/`,
+`validation/single-corners-panel-edge-results.json` e
+`validation/single-multi-corners-panel-edge-results.json`.
+D-Bus/Wayland privados, driver xe; nenhuma alteração na sessão principal.
+GNOME 45–50 e outros drivers não foram revalidados.
+
 # Validação — Gnome Shell Extended 1.5.1
 
 ## Quadrado da textura fosca — 2026-11-14

@@ -37,6 +37,8 @@ if os.environ.get('GSE_TEST_REFRACTION'):
     VARIANT += '-refraction'
 if os.environ.get('GSE_TEST_ECONOMIC'):
     VARIANT += '-economic'
+if os.environ.get('GSE_TEST_PANEL_EDGE'):
+    VARIANT += '-panel-edge'
 
 
 
@@ -91,7 +93,8 @@ export default class Helper extends Extension {
         env = dict(os.environ, GSE_TEST_CHILD='1', XDG_DATA_HOME=str(base / 'data'),
                    XDG_CONFIG_HOME=str(base / 'config'), XDG_CACHE_HOME=str(base / 'cache'),
                    XDG_STATE_HOME=str(base / 'state'), XDG_RUNTIME_DIR=str(base / 'runtime'))
-        if os.environ.get('GSE_TEST_FLICKER') or os.environ.get('GSE_TEST_REFRACTION') or os.environ.get('GSE_TEST_COMBINED'):
+        if any(os.environ.get(key) for key in ['GSE_TEST_FLICKER', 'GSE_TEST_REFRACTION',
+                                             'GSE_TEST_COMBINED', 'GSE_TEST_PANEL_EDGE']):
             from frame_probe import build_probe
             env.update(build_probe(base))
         for key in ['DISPLAY', 'WAYLAND_DISPLAY', 'DBUS_STARTER_ADDRESS', 'DBUS_STARTER_BUS_TYPE']:
@@ -201,6 +204,9 @@ def test():
             for(let x=0;x<1440;x+=40) scene.add_child(new St.Widget({x,y:32,width:40,height:968,
                 style:`background-color:${x%80?'#7a4189':'#3b818a'};`}));
             Main.uiGroup.insert_child_above(scene,global.window_group);''')
+        if os.environ.get('GSE_TEST_PANEL_EDGE'):
+            from panel_edge import run as test_panel_edge
+            test_panel_edge(evaluate, wait, check, screenshot, results)
         if os.environ.get('GSE_TEST_SAMPLES'):
             from gaussian_samples import run as test_samples
             test_samples(evaluate, wait, check, screenshot, results)

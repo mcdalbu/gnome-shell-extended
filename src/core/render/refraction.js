@@ -74,10 +74,14 @@ export const RefractionEffect = GObject.registerClass({
         const layout = view?.layout ?? {x: 0, y: 0};
         const [x, y] = actor.get_transformed_position();
         const [w, h] = actor.get_transformed_size();
-        const left = Math.max(0, Math.ceil((x - layout.x) * scale));
-        const top = Math.max(0, Math.ceil((y - layout.y) * scale));
-        const right = Math.min(framebuffer.get_width(), Math.floor((x + w - layout.x) * scale));
-        const bottom = Math.min(framebuffer.get_height(), Math.floor((y + h - layout.y) * scale));
+        // Capture every touched pixel; the destination scissor and shader
+        // own the surface coverage. Rounding inward drops the first/last
+        // framebuffer row when the shared capture has its subpixel inset,
+        // leaving a sharp one-pixel strip along screen-edge panels.
+        const left = Math.max(0, Math.floor((x - layout.x) * scale));
+        const top = Math.max(0, Math.floor((y - layout.y) * scale));
+        const right = Math.min(framebuffer.get_width(), Math.ceil((x + w - layout.x) * scale));
+        const bottom = Math.min(framebuffer.get_height(), Math.ceil((y + h - layout.y) * scale));
         const width = right - left;
         const height = bottom - top;
         if (width <= 0 || height <= 0 || w <= 0 || h <= 0)

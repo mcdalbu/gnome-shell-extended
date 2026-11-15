@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.2 — 2026-11-15
+
+- Corrige a linha sem blur no topo do painel: o arredondamento da captura passa a incluir todos os pixels tocados, respeitando os limites do framebuffer e o recorte da superfície.
+- Adiciona regressão das primeiras três linhas do painel real, em screenshot e framebuffer apresentado, com Box blur e Fast Gaussian Blur.
+
 ## 1.5.1 — 2026-11-14
 
 - Corrige o quadrado no canto superior esquerdo das superfícies com textura fosca, inclusive com o blur desligado: a textura passa a repetir por toda a área do elemento.
