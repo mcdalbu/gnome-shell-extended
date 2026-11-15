@@ -23,6 +23,20 @@ else:
     VARIANT = 'single'
 if os.environ.get('GSE_TEST_MULTI'):
     VARIANT += '-multi'
+if os.environ.get('GSE_TEST_REAL_DOCK_CORNERS'):
+    VARIANT += '-real-dock'
+if os.environ.get('GSE_TEST_SAMPLES'):
+    VARIANT += '-samples'
+if os.environ.get('GSE_TEST_DOCK_CORNERS'):
+    VARIANT += '-corners'
+if os.environ.get('GSE_TEST_CONTROLS'):
+    VARIANT += '-controls'
+if os.environ.get('GSE_TEST_COMBINED'):
+    VARIANT += '-combined'
+if os.environ.get('GSE_TEST_REFRACTION'):
+    VARIANT += '-refraction'
+if os.environ.get('GSE_TEST_ECONOMIC'):
+    VARIANT += '-economic'
 
 
 
@@ -31,7 +45,7 @@ def stage():
         base = Path(directory)
         target = base / 'data/gnome-shell/extensions' / UUID
         shutil.copytree(ROOT / 'build' / UUID, target)
-        if os.environ.get('GSE_TEST_REGRESSIONS'):
+        if os.environ.get('GSE_TEST_REGRESSIONS') or os.environ.get('GSE_TEST_REAL_DOCK_CORNERS'):
             dock = target.parent / 'dash-to-dock-extended@local'
             shutil.copytree(ROOT.parent / 'dash-to-dock-extended', dock,
                             ignore=shutil.ignore_patterns('.git', 'tests', 'validation', '*.zip'))
@@ -77,7 +91,7 @@ export default class Helper extends Extension {
         env = dict(os.environ, GSE_TEST_CHILD='1', XDG_DATA_HOME=str(base / 'data'),
                    XDG_CONFIG_HOME=str(base / 'config'), XDG_CACHE_HOME=str(base / 'cache'),
                    XDG_STATE_HOME=str(base / 'state'), XDG_RUNTIME_DIR=str(base / 'runtime'))
-        if os.environ.get('GSE_TEST_FLICKER'):
+        if os.environ.get('GSE_TEST_FLICKER') or os.environ.get('GSE_TEST_REFRACTION') or os.environ.get('GSE_TEST_COMBINED'):
             from frame_probe import build_probe
             env.update(build_probe(base))
         for key in ['DISPLAY', 'WAYLAND_DISPLAY', 'DBUS_STARTER_ADDRESS', 'DBUS_STARTER_BUS_TYPE']:
@@ -187,6 +201,27 @@ def test():
             for(let x=0;x<1440;x+=40) scene.add_child(new St.Widget({x,y:32,width:40,height:968,
                 style:`background-color:${x%80?'#7a4189':'#3b818a'};`}));
             Main.uiGroup.insert_child_above(scene,global.window_group);''')
+        if os.environ.get('GSE_TEST_SAMPLES'):
+            from gaussian_samples import run as test_samples
+            test_samples(evaluate, wait, check, screenshot, results)
+        if os.environ.get('GSE_TEST_DOCK_CORNERS'):
+            from dock_corners import run as test_corners
+            test_corners(evaluate, wait, check, screenshot, results)
+        if os.environ.get('GSE_TEST_REAL_DOCK_CORNERS'):
+            from real_dock_corners import run as test_real_corners
+            test_real_corners(evaluate, wait, check, screenshot, results)
+        if os.environ.get('GSE_TEST_CONTROLS'):
+            from appearance_controls import run as test_controls
+            test_controls(evaluate, wait, check, screenshot, results)
+        if os.environ.get('GSE_TEST_COMBINED'):
+            from combined_mode import run as test_combined
+            test_combined(evaluate, wait, check, screenshot, results)
+        if os.environ.get('GSE_TEST_REFRACTION'):
+            from refraction_mode import run as test_refraction
+            test_refraction(evaluate, wait, check, screenshot, results)
+        if os.environ.get('GSE_TEST_ECONOMIC'):
+            from economic_mode import run as test_economic
+            test_economic(evaluate, wait, check, screenshot, results)
         if os.environ.get('GSE_TEST_REGRESSIONS'):
             from regressions import run_dock
             early_env = dict(os.environ, WAYLAND_DISPLAY=evaluate('GLib.getenv("WAYLAND_DISPLAY")'), GTK_A11Y='none')
@@ -195,18 +230,13 @@ def test():
         wait('ext._manager._slots.get("blur").instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor)?.surface?._state.captures.size > 0')
         check('calendar-text-opacity', 'Main.panel.statusArea.dateMenu.menu.box.opacity === 255')
         screenshot('calendar')
-        evaluate("cfg.set_string('blur-backend','lightweight');cfg.set_int('update-frequency',15)")
-        wait("ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor)?.surface?.backend && !ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface._loading")
-        results['optional-backend'] = evaluate("ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface.backend.name")
-        if os.environ.get('GSE_TEST_NO_OPTIONAL'):
-            assert results['optional-backend'] == 'native'
-        if results['optional-backend'] == 'lightweight':
-            wait("[...ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface._state.captures.values()].every(c=>c.effect.frame_divisor===4)")
-            evaluate("cfg.set_int('update-frequency',1)")
-            check('backend-rate-clamped', "[...ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface._state.captures.values()].every(c=>c.effect.frame_divisor<=4)")
-        evaluate("cfg.set_string('blur-backend','off')")
-        check('backend-off-clears-captures', "(ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface?._state?.captures.size??0)===0")
-        evaluate("cfg.set_string('blur-backend','native');cfg.set_int('update-frequency',0)")
+        for method in ['box', 'fast-gaussian']:
+            evaluate(f"cfg.set_string('blur-method','{method}')")
+            wait("ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor)?.surface?.backend && !ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface._loading")
+            check('blur-method-' + method, f"ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface._state.glassConfig.method==='{method}'")
+        evaluate("cfg.set_boolean('blur-filter-enabled',false)")
+        check('blur-toggle-clears-captures', "(ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface?._state?.captures.size??0)===0")
+        evaluate("cfg.set_boolean('blur-filter-enabled',true);cfg.set_string('blur-method','box')")
         evaluate('Main.panel.statusArea.dateMenu.menu.close();')
         wait('!ext._manager._slots.get("blur").instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor)?.surface')
         evaluate('Main.panel.statusArea.quickSettings.menu.open();')

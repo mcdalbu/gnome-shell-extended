@@ -43,6 +43,7 @@ export function pruneCaptures(state, x, y, width, height) {
         if (x < r.x + r.width && x + width > r.x && y < r.y + r.height && y + height > r.y)
             continue;
         capture.actor.remove_effect(capture.effect);
+        capture.effect.release?.();
         capture.effect.run_dispose();
         capture.actor.destroy();
         state.captures.delete(view);
@@ -87,11 +88,17 @@ export function syncBackdropCapture(state, view, backend, radiusProperty, radius
         const effect = state.captures.size === 0 && state.effect
             ? state.effect : new backend.BlurEffect({mode: backend.BlurMode.BACKGROUND});
         actor.add_effect_with_name('gse-backdrop-blur', effect);
-        state.blur.add_child(actor);
+        state.blur.insert_child_at_index(actor, 0); // Frost, if enabled, stays above captures.
         capture = {actor, effect, view, onlyView};
         state.captures.set(view, capture);
         state.capture ??= actor;
         state.effect ??= effect;
+    }
+    if (capture.effect.isRefraction) {
+        capture.effect.configure(state.glassConfig);
+        capture.effect.glassBounds = [x, y, width, height];
+        const clip = state.blur.get_effect('gse-rounded-clip') ?? state.blur.get_effect('gse-window-clip');
+        capture.effect.glassCorner = (clip?.radius ?? 0) * Math.min(scaleX, scaleY);
     }
     updateCaptureAppearance(state, radiusProperty, radius, brightness, rate);
     const scale = view.get_scale();

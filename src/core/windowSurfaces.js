@@ -13,6 +13,8 @@ import {RoundedClip} from './render/roundedClip.js';
 import {Signals} from './render/signals.js';
 import {boundsIntersect, windowDamage} from './render/windowDamage.js';
 import {BackdropWidget} from './render/backdropGroup.js';
+import {readAppearance} from './appearance.js';
+import {syncFrostedGlass, clearFrostedGlass} from './render/frostedGlass.js';
 
 const menuTypes = [Meta.WindowType.DROPDOWN_MENU, Meta.WindowType.POPUP_MENU,
     Meta.WindowType.MENU, Meta.WindowType.COMBO];
@@ -38,8 +40,8 @@ const BlurSource = GObject.registerClass(class GseWindowBlurSource extends Clutt
 // window actor itself would also blur its text and controls.
 export class WindowSurfaces {
     constructor(settings, backend) {
-        this._backend = backend.api;
-        this._radiusProperty = this._backend.BlurEffect.list_properties().some(p => p.name === 'radius') ? 'radius' : 'sigma';
+        this._backend = backend?.api;
+        this._radiusProperty = this._backend?.BlurEffect.list_properties().some(p => p.name === 'radius') ? 'radius' : 'sigma';
         this._settings = settings;
         this._signals = new Signals();
         this._frames = new FrameSignals();
@@ -118,7 +120,7 @@ export class WindowSurfaces {
             this._queueUpdate();
         });
         this._frames.connect(global.stage, 'before-update', (_stage, view) => {
-            if (this._radius === 0 && this._brightness === 100)
+            if (this._economical || (this._radius === 0 && this._brightness === 100))
                 return;
             for (const state of this._visible)
                 state.guard.begin(state.blur, view);
@@ -136,10 +138,14 @@ export class WindowSurfaces {
 
     sync(effectOnly = false) {
         const settings = this._settings;
-        this._radius = settings.get_int('blur-radius');
+        const appearance = readAppearance(settings);
+        this._economical = !appearance.capture;
+        this._frosted = appearance.frosted;
+        this._radius = appearance.radius;
+        this._glassConfig = appearance;
         this._scale = this._context.scale_factor;
         this._brightness = Math.round(settings.get_double('blur-brightness') * 100);
-        this._rate = settings.get_int('update-frequency');
+        this._rate = 0;
         if (effectOnly) {
             for (const state of this._visible) {
                 this._applyEffect(state);
@@ -302,7 +308,7 @@ export class WindowSurfaces {
     }
 
     _reveal(state, wasVisible, from) {
-        if (!state.normal || this._radius === 0) {
+        if (!state.normal || (!this._economical && this._radius === 0)) {
             state.reveal?.remove_transition('value');
             if (state.reveal)
                 state.reveal.value = 1;
@@ -369,6 +375,8 @@ export class WindowSurfaces {
     }
 
     _repaintAffected(exposed, repaint = null, restacked = false) {
+        if (this._economical)
+            return;
         for (const state of this._visible) {
             if (restacked || repaint?.has(state)) {
                 for (const capture of state.captures.values())
@@ -387,7 +395,7 @@ export class WindowSurfaces {
     _syncDamageTracking() {
         // With selective blur, unrelated windows only supply the backdrop.
         // Subscribe to their changes while at least one backdrop is visible.
-        if (this._visible.size)
+        if (!this._economical && this._visible.size)
             this._stopWindowDamage ??= windowDamage.subscribe(bounds => this._repaintAffected(bounds));
         else {
             this._stopWindowDamage?.();
@@ -415,6 +423,7 @@ export class WindowSurfaces {
     _releaseCaptures(state) {
         for (const {actor, effect} of state.captures.values()) {
             actor.remove_effect(effect);
+            effect.release?.();
             effect.run_dispose();
             actor.destroy();
         }
@@ -430,6 +439,7 @@ export class WindowSurfaces {
         if (state.reveal)
             state.reveal.value = 0;
         state.blur?.hide();
+        clearFrostedGlass(state);
         // Keep a short warm cache for Overview/workspace toggles, then release
         // textures for minimized or otherwise inactive windows.
         if (state.captures.size && !state.releaseId && this._windows.has(state.actor)) {
@@ -450,6 +460,14 @@ export class WindowSurfaces {
     }
 
     _applyEffect(state) {
+        state.clip.shaderClip = !this._economical;
+        if (this._frosted)
+            syncFrostedGlass(state, this._settings.get_double('gtk-background-opacity') *
+                0.32 * (state.reveal?.value ?? 1), state.actor);
+        else
+            clearFrostedGlass(state);
+        if (this._economical)
+            return;
         if (this._radius > 0 && !state.source) {
             state.source = new BlurSource();
             state.actor.add_effect(state.source);
@@ -464,6 +482,9 @@ export class WindowSurfaces {
     }
 
     _syncCapture(state, view = null) {
+        if (this._economical)
+            return;
+        state.glassConfig = this._glassConfig;
         const progress = state.reveal?.value ?? 1;
         syncBackdropCapture(state, view, this._backend, this._radiusProperty,
             this._radius * progress, 100 + (this._brightness - 100) * progress,

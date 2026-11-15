@@ -5,6 +5,7 @@ import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 Gio.Resource.load('/usr/share/gnome-shell/org.gnome.Shell.Extensions.src.gresource')._register();
 const root = ARGV[0];
+const {LEGACY_APPEARANCE_KEYS} = await import(`file://${root}/core/appearance.js`);
 const {default: Preferences} = await import(`file://${root}/prefs.js`);
 const metadata = JSON.parse(new TextDecoder().decode(GLib.file_get_contents(`${root}/metadata.json`)[1]));
 metadata.path = root;
@@ -37,6 +38,10 @@ function assert(condition, message) {
 }
 assert(pages.size === 6, 'Six preferences pages');
 for (const key of settings.settings_schema.list_keys()) {
+    if (LEGACY_APPEARANCE_KEYS.includes(key)) {
+        assert(!controls.has(key), `Legacy setting hidden ${key}`);
+        continue;
+    }
     const control = controls.get(key);
     assert(control, `Missing control ${key}`);
     const type = settings.get_value(key).get_type_string();
@@ -64,6 +69,27 @@ for (const key of settings.settings_schema.list_keys()) {
     settings.reset(key);
 }
 assert(controls.has('opacity-gtk-settings-sidebar'), 'Settings integration control');
+for (const blur of [false, true]) {
+    for (const distortion of [false, true]) {
+        settings.set_boolean('blur-filter-enabled', blur);
+        settings.set_boolean('refraction-enabled', distortion);
+        assert(controls.get('blur-method').sensitive === blur, 'Blur method follows blur toggle');
+        assert(controls.get('blur-radius').sensitive === blur, 'Blur radius follows blur toggle');
+        assert(controls.get('refraction-strength').sensitive === distortion, 'Distortion strength independent');
+        assert(controls.get('refraction-enabled').sensitive, 'Distortion toggle always available');
+        assert(controls.get('blur-filter-enabled').sensitive, 'Blur toggle always available');
+    }
+}
+for (const enabled of [false,true]) for (const method of ['box','fast-gaussian']) {
+    settings.set_boolean('blur-filter-enabled',enabled);settings.set_string('blur-method',method);
+    assert(controls.get('blur-samples').sensitive===(enabled && method==='fast-gaussian'), 'Sample selector sensitivity');
+}
+for (const [index,value] of ['13','9','5'].entries()) {
+    controls.get('blur-samples').selected=index;
+    assert(settings.get_string('blur-samples')===value, 'Samples write binding');
+}
+for (const key of ['blur-filter-enabled','refraction-enabled','blur-method','blur-samples'])
+    settings.reset(key);
 window.present();
 window.set_visible_page_name('blur');
 const loop = new GLib.MainLoop(null, false);

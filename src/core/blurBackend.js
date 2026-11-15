@@ -10,6 +10,8 @@ export function nativeBackend() {
 
 // Optional namespace is loaded once, only when a visible surface needs blur.
 export async function loadBackend(preference) {
+    if (preference === 'refraction' || preference === 'combined')
+        return (await import('./render/refraction.js')).refractionBackend(preference === 'combined');
     if (preference === 'native' || preference === 'off')
         return nativeBackend();
     pending ??= import('gi://Blur').then(({default: api}) => {
@@ -31,7 +33,7 @@ export function radiusProperty(api) {
 // Brightness uses percentages only at this internal rendering boundary.
 export function applyBlurParameters(effect, property, radius, scale, brightness = 80) {
     const physicalRadius = Math.round(radius * scale);
-    const value = property === 'radius' ? physicalRadius : physicalRadius / 2;
+    const value = effect.isRefraction ? radius : property === 'radius' ? physicalRadius : physicalRadius / 2;
     if (effect[property] !== value)
         effect[property] = value;
     if (effect.brightness !== brightness / 100)

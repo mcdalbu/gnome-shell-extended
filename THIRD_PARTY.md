@@ -17,3 +17,40 @@ nativo usa Shell.BlurEffect fornecido pelo GNOME Shell.
 O probe de framebuffer em `tests/frame_probe.py` e `tests/frame-probe.{c,h}`
 também deriva do GNOME Extended, sob GPL-2.0-or-later. Ele é compilado em uma
 pasta temporária apenas para testes e não é incluído na extensão distribuída.
+
+## Referência do shader de refração (2026-11-14)
+
+`src/core/render/refraction.js` adapta o cálculo de distância, normal e perfil
+de lente do shader [LiquidGlass.fx](https://github.com/PedroRuedas/Windows-Liquid-glass/blob/main/src/LiquidGlass/Effects/Shaders/LiquidGlass.fx),
+do projeto Windows-Liquid-glass, de Pedro Ruedas (GPL-3.0). A adaptação GLSL/Cogl
+usa o fundo já pintado pelo compositor GNOME; não inclui o código de captura
+de janelas do Windows, dispersão cromática ou as sombras do shader original.
+
+## Fast Gaussian Blur (2026-11-14)
+
+`src/core/render/gaussianKernels.js` e `glassBlur.js` adaptam os pesos e
+deslocamentos de `5.glsl`, `9.glsl` e `13.glsl`
+do [glsl-fast-gaussian-blur](https://github.com/Experience-Monks/glsl-fast-gaussian-blur),
+Copyright (c) 2015 Jam3, sob MIT. A adaptação usa Cogl, filtragem linear,
+passadas horizontal/vertical e redução de resolução antes da refração.
+
+> The MIT License (MIT)
+> Copyright (c) 2015 Jam3
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import Gio from 'gi://Gio';
+import {readAppearance} from '../core/appearance.js';
 import {Signals} from '../core/render/signals.js';
 import {ResourceScope} from '../core/utils.js';
 import {gtkCss, writeGtkStyle} from '../core/gtkStyle.js';
@@ -27,7 +28,7 @@ export default class OpacityModule {
                 this._launcher();
             if (key.startsWith('opacity-') || key === 'gtk-background-opacity')
                 sync();
-            if (key.startsWith('opacity-') || key.startsWith('blur-') ||
+            if (key.startsWith('opacity-') || key.startsWith('blur-') || key.startsWith('refraction-') || key === 'frosted-glass-enabled' ||
                 ['windows-blur', 'update-frequency', 'gtk-background-opacity'].includes(key))
                 this._syncWindowBlur();
         });
@@ -38,12 +39,13 @@ export default class OpacityModule {
     }
 
     _syncWindowBlur() {
+        const appearance = readAppearance(this.settings);
         const wanted = this.active && this.settings.get_boolean('windows-blur') &&
             this.settings.get_double('gtk-background-opacity') < 1 &&
-            this.settings.get_string('blur-backend') !== 'off' &&
+            (appearance.capture || appearance.frosted) &&
             ['opacity-gtk-files-sidebar', 'opacity-gtk-settings-sidebar', 'opacity-gtk-menus', 'opacity-ptyxis']
                 .some(key => this.settings.get_boolean(key));
-        const preference = this.settings.get_string('blur-backend');
+        const preference = appearance.capture ? 'combined' : 'economical';
         if (!wanted || (this._windowPreference !== preference && this.windowBlur)) {
             this._windowToken = (this._windowToken ?? 0) + 1;
             this._windowLoading = false;
@@ -63,7 +65,7 @@ export default class OpacityModule {
         const token = this._windowToken = (this._windowToken ?? 0) + 1;
         Promise.all([import('../core/windowSurfaces.js'), import('../core/blurBackend.js')])
             .then(async ([{WindowSurfaces}, {loadBackend}]) => {
-                const backend = await loadBackend(preference);
+                const backend = appearance.capture ? await loadBackend(preference) : null;
                 if (!this.active || token !== this._windowToken)
                     return;
                 this.windowBlur = new WindowSurfaces(this.settings, backend);

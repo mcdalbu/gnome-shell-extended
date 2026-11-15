@@ -31,6 +31,57 @@
       <summary>Debug logging</summary>
       <description>Read when the extension is enabled. Errors are always logged.</description>
     </key>
+    <key name="blur-filter-enabled" type="b">
+      <default>true</default>
+      <summary>Enable background blur</summary>
+      <description>Enable the selected blur filter independently of glass distortion.</description>
+    </key>
+    <key name="blur-method" type="s">
+      <choices><choice value="box"/><choice value="fast-gaussian"/></choices>
+      <default>'box'</default>
+      <summary>Blur method</summary>
+      <description>GPU separable Box blur or Fast Gaussian Blur.</description>
+    </key>
+    <key name="blur-samples" type="s">
+      <choices><choice value="5"/><choice value="9"/><choice value="13"/></choices>
+      <default>'13'</default>
+      <summary>Fast Gaussian sample count</summary>
+      <description>5, 9 or 13 taps, using 3, 5 or 7 linear texture reads per direction. Box blur ignores this setting.</description>
+    </key>
+    <key name="refraction-enabled" type="b">
+      <default>false</default>
+      <summary>Enable glass distortion</summary>
+      <description>Refract the background independently of blur.</description>
+    </key>
+    <key name="frosted-glass-enabled" type="b">
+      <default>false</default>
+      <summary>Enable static frosted texture</summary>
+      <description>Shared translucent texture. Does not capture or blur the background.</description>
+    </key>
+    <key name="appearance-controls-version" type="i">
+      <range min="0" max="1"/>
+      <default>0</default>
+      <summary>Appearance settings migration version</summary>
+      <description>Internal one-time upgrade marker.</description>
+    </key>
+    <key name="blur-mode" type="s">
+      <choices><choice value="dynamic"/><choice value="economical"/><choice value="refraction"/><choice value="combined"/></choices>
+      <default>'dynamic'</default>
+      <summary>Appearance mode</summary>
+      <description>Dynamic blurs the live backdrop. Refraction captures and distorts the live backdrop on the GPU. Combined glass applies the selected GPU blur before refraction. Economical uses a shared translucent frosted texture without capturing or blurring the backdrop.</description>
+    </key>
+    <key name="blur-glass-method" type="s">
+      <choices><choice value="box"/><choice value="fast-gaussian"/></choices>
+      <default>'box'</default>
+      <summary>Combined glass blur method</summary>
+      <description>GPU separable box blur or Fast Gaussian Blur, applied before glass refraction.</description>
+    </key>
+    <key name="refraction-strength" type="d">
+      <range min="0.0" max="24.0"/>
+      <default>6.0</default>
+      <summary>Glass refraction strength</summary>
+      <description>Logical-pixel displacement of the live background. Used when glass distortion is enabled.</description>
+    </key>
     <key name="blur-backend" type="s">
       <choices><choice value="auto"/><choice value="native"/><choice value="lightweight"/><choice value="off"/></choices>
       <default>'auto'</default>

@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.5.1 — 2026-11-14
+
+- Corrige o quadrado no canto superior esquerdo das superfícies com textura fosca, inclusive com o blur desligado: a textura passa a repetir por toda a área do elemento.
+- Mantém o tile compartilhado de 64×64, sem novas capturas, buffers ou processamento de blur.
+- Adiciona regressão de pixels para cobertura e limites da superfície nos temas claro e escuro.
+
+## 1.5.0 — 2026-11-14
+
+- Corrige a coluna sem blur junto à transição entre lateral e curva do dock, substituindo o recorte binário das capturas por cobertura arredondada com antialias no shader.
+- Preserva recortes do contêiner, textura fosca, fades e efeitos independentes.
+- Adiciona **Samples do Fast Gaussian**: 5, 9 ou 13 taps, com 3, 5 ou 7 leituras lineares por direção. O padrão continua 13.
+- Troca o kernel ao vivo em superfícies, painel, docks, janelas e papéis de parede opcionais. O seletor é desabilitado para Box blur e quando o blur está desligado.
+
+## 1.4.0 — 2026-11-14
+
+- Substitui o seletor de modos por **Ativar blur** e **Ativar distorção do vidro**, independentes.
+- O toggle de blur habilita **Box blur** ou **Fast Gaussian Blur** e o controle de raio; a distorção tem toggle e intensidade próprios.
+- Mantém **Textura fosca** como opção separada. Sem blur nem distorção, não cria capturas do fundo.
+- Unifica a configuração em menus, painel, docks, janelas selecionadas, Overview e bloqueio.
+- Migra uma vez os modos e o método antigos, preservando escolhas explícitas dos novos controles.
+- Remove backend, frequência e modos antigos das preferências; suas chaves ficam apenas para compatibilidade de migração.
+- Ao desligar o blur, libera também os buffers de filtros de screenshots em cache. Preserva o estilo do painel quando ambos os efeitos estão desligados.
+
+## 1.3.0 — 2026-11-14
+
+- Adiciona **Vidro com desfoque**, com blur e refração controlados independentemente.
+- Inclui **Box blur** separável na GPU e **Fast Gaussian Blur**, adaptado do kernel de 13 taps do projeto Experience-Monks (MIT).
+- Captura o fundo uma vez, reduz a resolução em etapas e aplica o filtro antes da lente; textos, ícones e conteúdo opaco não entram no filtro.
+- Integra os dois métodos às superfícies, painel, docks, janelas selecionadas e papéis de parede opcionais de Overview/bloqueio.
+- Preserva os três modos anteriores e seus defaults. Raio zero ou refração zero permitem usar cada efeito separadamente.
+
+## 1.2.0 — 2026-11-14
+
+- Adiciona **Vidro — refração real**, com shader de fragmento GLSL e normais do contorno arredondado, inspirado em LiquidGlass.fx de Pedro Ruedas.
+- Copia o fundo na GPU antes do primeiro plano, sem leitura pela CPU nem blur; controla a intensidade da lente separadamente.
+- Integra o modo a menus, painel, docks, janelas selecionadas e papéis de parede opcionais.
+- Corrige o atraso do backdrop em superfícies animadas, aplicando a posição por translação no mesmo frame.
+- Valida visualmente a textura econômica com iluminação pré-calculada de normais, nos temas claro e escuro.
+
+## 1.1.0 — 2026-11-14
+
+- Adiciona **Blur → Modo**: Dinâmico (padrão) ou Econômico — vidro fosco.
+- O econômico usa uma textura translúcida compartilhada, sem capturas, cálculo de blur ou proteção de redraw completo. O fundo atrás continua nítido.
+- Aplica a escolha às superfícies do Shell, painel, dock, janelas selecionadas e papéis de parede opcionais do Overview/bloqueio.
+- Preserva opacidade, cantos, recortes, animações, estilos e restauração ao desativar.
+- Desabilita os controles exclusivos do blur dinâmico no modo econômico, sem perder seus valores.
+
 ## 1.0.0 — 2026-11-13
 
 Primeira versão 1.0 estável, baseada na 0.3.11, sem alterações funcionais.

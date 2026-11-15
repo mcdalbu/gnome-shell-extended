@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {migrateAppearance} from './core/appearance.js';
 import {MODULE_LOADERS} from './core/config.js';
 import {Logger} from './core/logger.js';
 import {ModuleManager} from './core/moduleManager.js';
@@ -8,6 +9,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 export default class GnomeShellExtended extends Extension {
     enable() {
         const settings = this.getSettings();
+        migrateAppearance(settings);
         this._manager = new ModuleManager(settings, MODULE_LOADERS,
             new Logger(settings.get_boolean('debug-logging')));
         try {

@@ -17,7 +17,7 @@ export default class BlurModule {
         this.active = true;
         const sync = this.scope.debounce(this.settings.get_int('resize-debounce-ms'), () => this.sync());
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
-            if (key.startsWith('blur-') || ['surface-opacity', 'update-frequency'].includes(key))
+            if (key.startsWith('blur-') || key.startsWith('refraction-') || key === 'frosted-glass-enabled' || ['surface-opacity', 'update-frequency'].includes(key))
                 this.sync();
         });
         this.signals.connect(Main.layoutManager, 'startup-complete', () => this.sync());

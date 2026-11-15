@@ -71,12 +71,16 @@ export const RoundedClip = GObject.registerClass(class GseRoundedClip extends Cl
             return;
         const [stageX, stageY] = actor.get_transformed_position();
         const [stageWidth, stageHeight] = actor.get_transformed_size();
-        const x = Math.ceil((stageX - layout.x) * scale);
-        const y = Math.ceil((stageY - layout.y) * scale);
-        const width = Math.floor((stageX + stageWidth - layout.x) * scale) - x;
-        const height = Math.floor((stageY + stageHeight - layout.y) * scale) - y;
+        // Shader captures apply their own antialiased coverage. Keep a
+        // conservative rectangular scissor so fractional edge pixels survive.
+        const start = this.shaderClip ? Math.floor : Math.ceil;
+        const end = this.shaderClip ? Math.ceil : Math.floor;
+        const x = start((stageX - layout.x) * scale);
+        const y = start((stageY - layout.y) * scale);
+        const width = end((stageX + stageWidth - layout.x) * scale) - x;
+        const height = end((stageY + stageHeight - layout.y) * scale) - y;
         const transformScale = Math.min(stageWidth / actor.width, stageHeight / actor.height);
-        const radius = Math.min(this.radius * scale * transformScale, width / 2, height / 2);
+        const radius = this.shaderClip ? 0 : Math.min(this.radius * scale * transformScale, width / 2, height / 2);
         const key = `${x}:${y}:${width}:${height}:${radius}`;
         if (key !== this._key) {
             const region = Mtk ? Mtk.Region.create() : new Cairo.Region();

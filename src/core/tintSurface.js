@@ -9,8 +9,10 @@ export class TintSurface {
     constructor(box, _anchor, settings, _logger, options = {}) {
         Object.assign(this, {box, settings, options});
         this.signals = new Signals();
-        this.style = new StyleLease(box);
+        this.style = options.manageStyle === false ? null : new StyleLease(box);
         this.signals.connect(box, 'destroy', () => this.destroy(true));
+        if (!this.style)
+            return;
         this.signals.connect(box, 'style-changed', () => {
             if (!this._writing && box.get_style() !== this.style.applied)
                 this._queueUpdate();
@@ -33,7 +35,7 @@ export class TintSurface {
     }
 
     update() {
-        if (this._destroyed)
+        if (this._destroyed || !this.style)
             return;
         this._writing = true;
         try {
@@ -66,6 +68,6 @@ export class TintSurface {
         this._later = 0;
         this.signals.clear();
         if (!actorDestroyed)
-            this.style.restore();
+            this.style?.restore();
     }
 }

@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **1.0.0**.
+preferências GTK4/Libadwaita. Versão **1.5.1**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -14,13 +14,13 @@ Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md
 | Docks | Dash to Dock/Ubuntu Dock: blur, opacidade do fundo e fundo invisível no Overview, preservando os ícones |
 | Sombras | Grade, pastas, dock e Alt+Tab; intensidade, raio e deslocamentos |
 | Aplicativos | Integração opcional por CSS para barras laterais do Nautilus/Configurações e menus GTK4; opacidade nativa dos perfis do Ptyxis |
-| Preferências | Seis abas, 45 opções, limites de valores e restauração de defaults |
+| Preferências | Seis abas, 50 controles, limites de valores e restauração de defaults |
 
 Por padrão, blur do calendário/configurações rápidas e painel adaptativo ficam
 ativos. Outros elementos podem ser habilitados individualmente. As integrações
 com aplicativos, docks e sombras ficam desligadas por padrão.
 
-**Blur de janelas:** a aba Aplicativos inclui `Blur nos fundos transparentes`.
+**Blur de janelas:** a aba Aplicativos inclui `Efeitos nos fundos transparentes`.
 Ele é aplicado atrás das janelas dos aplicativos selecionados e fica visível
 somente onde o aplicativo já desenha transparência. O conteúdo opaco, os textos
 e os ícones continuam sendo desenhados pelo aplicativo. O módulo é liberado
@@ -33,6 +33,51 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
+
+## Blur e vidro — 1.5.0
+
+A aba **Blur** tem dois controles independentes:
+
+- **Ativar blur**: permite escolher **Box blur** ou **Fast Gaussian Blur** e
+  ajustar o raio. Ambos filtram o fundo na GPU; o método e o raio ficam
+  indisponíveis quando o blur está desligado, sem perder seus valores.
+- **Ativar distorção do vidro**: habilita a lente nas bordas arredondadas, com
+  intensidade própria. Funciona com o blur ligado ou desligado.
+
+Com os dois ligados, o fundo é desfocado antes da distorção. Com os dois
+desligados, não há captura do fundo: ficam apenas a transparência e os estilos
+configurados. As escolhas valem para todas as superfícies habilitadas.
+As opções nas abas Elementos, Painel, Dock e Aplicativos selecionam onde os
+efeitos são aplicados; não substituem os toggles globais da aba Blur.
+
+**Textura fosca** é uma opção separada em Aparência. Usa iluminação
+pré-calculada por normais em uma textura compartilhada de 64 × 64 pixels,
+sem capturar ou desfocar o fundo. Pode ser combinada com os outros efeitos.
+Usada sozinha, preserva o redesenho parcial e não acompanha danos do fundo.
+
+O Box blur usa três iterações horizontal/vertical. O Fast Gaussian Blur usa
+kernels de **5, 9 ou 13 taps**, escolhidos em **Samples do Fast Gaussian**.
+Eles usam, respectivamente, **3, 5 ou 7 leituras lineares de textura por direção**.
+13 taps é o padrão e preserva o filtro anterior; menos taps reduz leituras,
+com outra aproximação do desfoque. A opção só fica disponível com blur ligado
+e Fast Gaussian selecionado. Os kernels foram adaptados de Experience-Monks sob MIT. Nas superfícies, os filtros usam uma
+pirâmide de redução de 2× a 8×, conforme o raio. No Overview/bloqueio, apenas
+o papel de parede é processado, com o cache de atores do compositor.
+A aparência de um mesmo raio nominal varia entre os métodos.
+
+A refração usa normais do contorno arredondado e preserva o centro plano,
+com base na referência Windows-Liquid-glass descrita em `THIRD_PARTY.md`.
+O recorte das capturas usa cobertura arredondada com antialias no shader,
+evita o degrau de um pixel junto às tangentes do dock e respeita o clip do
+seu contêiner. Textos, ícones e pixels opacos dos aplicativos são preservados. Em uma falha
+de cópia do framebuffer, mantém a transparência nativa sem reutilizar capturas
+antigas. Não há alegação de ganho percentual de GPU medido.
+
+Na atualização, os modos anteriores são migrados uma vez: Dinâmico ativa o
+blur; Refração ativa só a distorção; Combinado ativa ambos; Econômico ativa só
+a textura fosca. Método, raio e intensidade são preservados. Um antigo backend
+Desativado no modo Dinâmico migra para blur desligado. O seletor de modos e os
+controles de backend/frequência deixam de aparecer na interface.
 
 ## Versão 1.0.0
 

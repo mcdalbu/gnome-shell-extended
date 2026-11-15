@@ -12,6 +12,8 @@ import {RoundedClip} from './render/roundedClip.js';
 import {syncBackdropCapture} from './render/backdropCapture.js';
 import {windowDamage, boundsIntersect} from './render/windowDamage.js';
 import {BackdropGroup} from './render/backdropGroup.js';
+import {readAppearance} from './appearance.js';
+import {syncFrostedGlass, clearFrostedGlass} from './render/frostedGlass.js';
 
 // One instance per visible surface, released on close. Sibling capture keeps
 // offscreen popup effects from blurring foreground text or sampling themselves.
@@ -79,7 +81,7 @@ export class Surface {
                 // A final hide still needs the previous sampled area cleared
                 // during this frame. Keep the guard until after-update.
                 const previouslyPainted = view ? this._paintedViews.has(view) : this._paintedViews.size > 0;
-                if (previouslyPainted)
+                if (!this._economical && previouslyPainted)
                     this.guard.begin(this.blur, view, this.box, true);
                 if (!this._syncVisibility()) {
                     return;
@@ -112,7 +114,7 @@ export class Surface {
                 this._geometry();
                 if (this.backend && this._visible())
                     this._capture(view);
-                if (view) {
+                if (view && !this._economical) {
                     const [x, y] = this.box.get_transformed_position();
                     const [w, h] = this.box.get_transformed_size();
                     const r = view.layout;
@@ -202,9 +204,12 @@ export class Surface {
         this._cornerRadius = undefined;
         this._baseAlpha = this.options.opacity?.() ?? this.settings.get_double('surface-opacity');
         this._alpha = this._baseAlpha * (this.options.fade?.() ?? 1);
-        this._radius = this.settings.get_int('blur-radius');
+        const appearance = readAppearance(this.settings);
+        this._radius = appearance.radius;
+        this._state.glassConfig = appearance;
         this._brightness = this.settings.get_double('blur-brightness') * 100;
-        this._hz = this.settings.get_int('update-frequency');
+        this._hz = 0;
+        this._economical = !appearance.capture;
         if (this.style) {
             this._styling = true;
             this.style.restore();
@@ -213,9 +218,15 @@ export class Surface {
             this.style.set(`background-color: rgba(${color.red}, ${color.green}, ${color.blue}, ${this._alpha}); background-image: none; transition-duration: 0ms;`);
             this._styling = false;
         }
-        const wantBlur = this.options.blur?.() !== false && this._baseAlpha < 1 && this._radius > 0 &&
-            this.settings.get_string('blur-backend') !== 'off';
-        this.blur.visible = wantBlur;
+        const enabled = this.options.blur?.() !== false && this._baseAlpha < 1;
+        const wantGlass = enabled && appearance.frosted;
+        const wantBlur = enabled && appearance.capture;
+        this.clip.shaderClip = wantBlur;
+        this.blur.visible = wantBlur || wantGlass;
+        if (wantGlass)
+            syncFrostedGlass(this._state, this._baseAlpha * 0.32);
+        else
+            clearFrostedGlass(this._state);
         if (!wantBlur) {
             this._generation++;
             this._loading = null;
@@ -223,8 +234,10 @@ export class Surface {
             this.backend = null;
             this._stopDamage?.();
             this._stopDamage = null;
+            this.guard.end();
+            this._paintedViews.clear();
         } else {
-            const preference = this.settings.get_string('blur-backend');
+            const preference = 'combined';
             if (this._preference !== preference || (!this.backend && !this._loading)) {
                 const token = ++this._generation;
                 this._preference = preference;
@@ -287,7 +300,10 @@ export class Surface {
         const key = geometry.join(':');
         if (this._geometryKey !== key) {
             this._geometryKey = key;
-            this.blur.set_position(geometry[0], geometry[1]);
+            // A position allocation requested in before-paint lands in the
+            // next layout. Translation applies in this frame, so the sibling
+            // capture and clip follow the animated foreground without delay.
+            this.blur.set_translation(geometry[0], geometry[1], 0);
             this.blur.set_size(geometry[2], geometry[3]);
             this._repaintEffects();
         }
@@ -297,6 +313,8 @@ export class Surface {
         }
         const radius = this._cornerRadius;
         this.clip.radius = Math.min(radius * geometry[2] / Math.max(1, this.box.width), geometry[2] / 2, geometry[3] / 2);
+        if (this._state.glassClip)
+            this._state.glassClip.radius = this.clip.radius;
     }
 
     _capture(view = null) {
@@ -339,6 +357,7 @@ export class Surface {
     _clearCaptures() {
         for (const {actor, effect} of this._state.captures.values()) {
             actor.remove_effect(effect);
+            effect.release?.();
             effect.run_dispose();
             actor.destroy();
         }
@@ -365,6 +384,7 @@ export class Surface {
         this._stopDamage?.();
         this._stopDamage = null;
         this._clearCaptures();
+        clearFrostedGlass(this._state);
         if (!boxDestroyed)
             this.style?.restore();
         if (this.group) {

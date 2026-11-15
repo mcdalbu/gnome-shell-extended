@@ -49,7 +49,7 @@ export default class DocksModule {
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
             if (key === 'dock-invisible-overview')
                 this._animateOverview();
-            else if (key.startsWith('dock-') || key.startsWith('blur-') || key === 'update-frequency')
+            else if (key.startsWith('dock-') || key.startsWith('blur-') || key.startsWith('refraction-') || key === 'frosted-glass-enabled' || key === 'update-frequency')
                 this.sync();
         });
         this._scan();

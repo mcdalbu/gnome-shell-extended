@@ -1,0 +1,145 @@
+// SPDX-License-Identifier: GPL-3.0-only
+import Clutter from 'gi://Clutter';
+import Cogl from 'gi://Cogl';
+import GObject from 'gi://GObject';
+import {gaussianKernels, gaussianSource} from './gaussianKernels.js';
+
+const box = `
+    vec2 uv = cogl_tex_coord_in[0].xy;
+    vec4 color = vec4(0.0);
+    for (int i = -4; i <= 4; i++)
+        color += texture2D(cogl_sampler0, uv + blurStep * float(i));
+    cogl_color_out = color / 9.0;
+`;
+const snippets = new Map();
+
+function pipeline(context, method = null, samples = 13) {
+    const result = Cogl.Pipeline.new(context);
+    result.set_layer_filters(0, Cogl.PipelineFilter.LINEAR, Cogl.PipelineFilter.LINEAR);
+    result.set_layer_wrap_mode(0, Cogl.PipelineWrapMode.CLAMP_TO_EDGE);
+    if (method) {
+        const key = method === 'fast-gaussian' ? `${method}:${samples}` : method;
+        if (!snippets.has(key)) {
+            const snippet = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, 'uniform vec2 blurStep;', null);
+            snippet.set_replace(method === 'fast-gaussian' ? gaussianSource(samples) : box);
+            snippets.set(key, snippet);
+        }
+        result.add_snippet(snippets.get(key));
+    }
+    return result;
+}
+
+function target(context, width, height) {
+    const texture = Cogl.Texture2D.new_with_size(context, width, height);
+    const framebuffer = Cogl.Offscreen.new_with_texture(texture);
+    framebuffer.allocate();
+    framebuffer.orthographic(0, 0, width, height, -1, 1);
+    return {texture, framebuffer, width, height};
+}
+
+// GPU-only separable filters. Build a 2x pyramid so a wide blur never skips
+// entire source stripes. Geometry uses the final radius, stable during fades.
+export class GlassBlur {
+    constructor(context, width, height, maximumRadius) {
+        this.levels = [];
+        const reduction = Math.min(8, Math.max(2,
+            2 ** Math.floor(Math.log2(Math.max(1, maximumRadius / 6)))));
+        for (let factor = 1; factor < reduction; factor *= 2) {
+            width = Math.max(1, Math.ceil(width / 2));
+            height = Math.max(1, Math.ceil(height / 2));
+            this.levels.push(target(context, width, height));
+        }
+        this.scratch = target(context, width, height);
+        this.copy = pipeline(context);
+        this.context = context;
+        this.filters = new Map();
+        this.reduction = reduction;
+    }
+
+    _draw(destination, source, shader) {
+        shader.set_layer_texture(0, source);
+        destination.framebuffer.draw_textured_rectangle(shader,
+            0, 0, destination.width, destination.height, 0, 0, 1, 1);
+    }
+
+    apply(source, radius, method, samples = 13) {
+        for (const level of this.levels) {
+            this._draw(level, source, this.copy);
+            source = level.texture;
+        }
+        const output = this.levels[this.levels.length - 1];
+        const key = method === 'fast-gaussian' ? `${method}:${samples}` : method;
+        if (!this.filters.has(key))
+            this.filters.set(key, pipeline(this.context, method, samples));
+        const shader = this.filters.get(key);
+        const step = radius / this.reduction / (method === 'fast-gaussian' ? gaussianKernels[samples].support : 8);
+        const location = shader.get_uniform_location('blurStep');
+        // Three box iterations approximate a Gaussian; the weighted Gaussian
+        // kernel needs one horizontal and one vertical pass.
+        for (let pass = 0; pass < (method === 'box' ? 3 : 1); pass++) {
+            shader.set_uniform_float(location, 2, 1, [step / output.width, 0]);
+            this._draw(this.scratch, output.texture, shader);
+            shader.set_uniform_float(location, 2, 1, [0, step / output.height]);
+            this._draw(output, this.scratch.texture, shader);
+        }
+        output.framebuffer.flush();
+        return output.texture;
+    }
+}
+
+const wallpaperSnippets = new Map();
+
+// Actor-source wallpaper filters use Clutter's cached offscreen chain. Each
+// pass reads the preceding pass after it has painted, never an old CPU copy.
+export function wallpaperBlurPasses(actor, radius, method, samples = 13) {
+    const key = method === 'fast-gaussian' ? `${method}:${samples}` : method;
+    const fragment = (method === 'fast-gaussian' ? gaussianSource(samples) : box)
+        .replaceAll('blurStep', 'vec2(blurStepX, blurStepY)')
+        .replaceAll('texture2D', 'glassWallpaperSample');
+    const declarations = `uniform float blurStepX; uniform float blurStepY;
+        uniform float blurClampX; uniform float blurClampY;
+        vec4 glassWallpaperSample(sampler2D image, vec2 uv) {
+            vec2 edge = vec2(blurClampX, blurClampY);
+            return texture2D(image, clamp(uv, edge, vec2(1.0)-edge));
+        }`;
+    const effects = [];
+    for (let pass = 0; pass < (method === 'box' ? 3 : 1); pass++) {
+        for (const axis of [0, 1]) {
+            let effect;
+            if (Clutter.ShaderEffect.new_with_snippet) {
+                if (!wallpaperSnippets.has(key)) {
+                    const snippet = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, declarations, null);
+                    snippet.set_replace(fragment);
+                    wallpaperSnippets.set(key, snippet);
+                }
+                effect = Clutter.ShaderEffect.new_with_snippet(wallpaperSnippets.get(key));
+            } else {
+                effect = new Clutter.ShaderEffect({shader_type: Clutter.ShaderType.FRAGMENT_SHADER});
+                effect.set_shader_source(`uniform sampler2D tex; ${declarations}
+                    void main() { ${fragment.replaceAll('cogl_sampler0', 'tex')} }`);
+            }
+            effect.blurAxis = axis;
+            effect.blurMethod = method;
+            effect.blurSamples = samples;
+            updateWallpaperBlur(effect, actor, radius);
+            effects.push(effect);
+        }
+    }
+    return effects;
+}
+
+export function updateWallpaperBlur(effect, actor, radius) {
+    const step = radius / (effect.blurMethod === 'box' ? 8 : gaussianKernels[effect.blurSamples].support);
+    for (const [name, number] of Object.entries({
+        blurClampX: Math.min(0.49, 2 / Math.max(1, actor.width)),
+        blurClampY: Math.min(0.49, 2 / Math.max(1, actor.height)),
+        blurStepX: effect.blurAxis === 0 ? step / Math.max(1, actor.width) : 0,
+        blurStepY: effect.blurAxis === 1 ? step / Math.max(1, actor.height) : 0,
+    })) {
+        const value = new GObject.Value();
+        value.init(GObject.TYPE_FLOAT);
+        value.set_float(number);
+        effect.set_uniform_value(name, value);
+    }
+    effect.enabled = radius > 0;
+}

@@ -2,11 +2,13 @@
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import Gio from 'gi://Gio';
+import {migrateAppearance} from './core/appearance.js';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 export default class GnomeShellExtendedPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
+        migrateAppearance(settings);
         const connections = [];
         window.set_default_size(820, 720);
         window.search_enabled = true;
@@ -34,6 +36,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             });
             settings.bind(key, row, 'value', Gio.SettingsBindFlags.DEFAULT);
             parent.add(row);
+            return row;
         };
         const choice = (parent, key, title, values, labels, subtitle = '') => {
             const row = new Adw.ComboRow({name: `setting-${key}`, title, subtitle,
@@ -47,6 +50,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
                 row.selected = values.indexOf(settings.get_string(key));
             }));
             parent.add(row);
+            return row;
         };
         const dependent = (parent, key, title, description = '') => {
             const value = group(parent, title, description);
@@ -56,7 +60,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
 
         const elements = page('elements', 'Elementos', 'view-grid-symbolic');
         const targets = group(elements, 'Superfícies do Shell', 'O blur é criado ao abrir a superfície e liberado ao fechá-la. Textos e ícones permanecem opacos.');
-        toggle(targets, 'blur-enabled', 'Ativar blur no Shell');
+        toggle(targets, 'blur-enabled', 'Aplicar efeitos no Shell');
         const surfaces = dependent(elements, 'blur-enabled', 'Aplicar em');
         for (const [key, title] of [
             ['calendar', 'Calendário e notificações'], ['quick-settings', 'Configurações rápidas'],
@@ -69,16 +73,34 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             toggle(surfaces, `blur-${key}`, title);
 
         const blur = page('blur', 'Blur', 'preferences-desktop-wallpaper-symbolic');
-        const appearance = group(blur, 'Aparência', 'Os parâmetros também são usados pelo blur dos docks.');
-        choice(appearance, 'blur-backend', 'Backend', ['auto', 'native', 'lightweight', 'off'],
-            ['Auto', 'Nativo', 'Leve', 'Desativado'],
-            'O backend leve requer a biblioteca Blur compatível. Sem ela, é usado o nativo.');
-        number(appearance, 'blur-radius', 'Raio (pixels lógicos)', 0, 100);
+        const blurOptions = group(blur, 'Desfoque', 'Aplica o método selecionado ao fundo das superfícies habilitadas.');
+        toggle(blurOptions, 'blur-filter-enabled', 'Ativar blur');
+        const blurControls = [
+            choice(blurOptions, 'blur-method', 'Método de blur', ['box', 'fast-gaussian'], ['Box blur', 'Fast Gaussian Blur']),
+            number(blurOptions, 'blur-radius', 'Raio do desfoque (pixels lógicos)', 0, 100),
+        ];
+        const samplesControl = choice(blurOptions, 'blur-samples', 'Samples do Fast Gaussian',
+            ['13', '9', '5'], ['13 taps', '9 taps', '5 taps'],
+            '13, 9 e 5 taps usam 7, 5 e 3 leituras de textura por direção.');
+        const glassOptions = group(blur, 'Vidro', 'A distorção pode ser usada sozinha ou combinada com o blur.');
+        toggle(glassOptions, 'refraction-enabled', 'Ativar distorção do vidro');
+        const strengthControl = number(glassOptions, 'refraction-strength', 'Intensidade da distorção', 0, 24, 0.5);
+        const appearance = group(blur, 'Aparência');
         number(appearance, 'blur-brightness', 'Brilho do fundo', 0, 1, 0.05);
         number(appearance, 'surface-opacity', 'Opacidade do fundo', 0, 1, 0.05);
-        const performance = group(blur, 'Recursos', 'O backend nativo acompanha o compositor e não limita a frequência de captura. Overview e bloqueio usam blur nativo do papel de parede, com cache do compositor.');
-        number(performance, 'update-frequency', 'Limite solicitado de captura (Hz)', 0, 120, 1,
-            '0 = compositor. Aplicado apenas se o backend opcional expuser frame-divisor.');
+        toggle(appearance, 'frosted-glass-enabled', 'Textura fosca',
+            'Textura estática compartilhada, sem capturar ou desfocar o fundo.');
+        const syncEffects = () => {
+            for (const control of blurControls)
+                control.sensitive = settings.get_boolean('blur-filter-enabled');
+            samplesControl.sensitive = settings.get_boolean('blur-filter-enabled') && settings.get_string('blur-method') === 'fast-gaussian';
+            strengthControl.sensitive = settings.get_boolean('refraction-enabled');
+        };
+        for (const key of ['blur-filter-enabled', 'blur-method', 'refraction-enabled'])
+            connections.push(settings.connect(`changed::${key}`, syncEffects));
+        syncEffects();
+        const performance = group(blur, 'Recursos',
+            'Box blur e Fast Gaussian Blur usam a GPU. Blur e distorção desligados liberam as capturas do fundo.');
         number(performance, 'resize-debounce-ms', 'Debounce de eventos (ms)', 0, 1000, 10,
             'Aplicado na próxima ativação do módulo; animações acompanham os frames do Shell.');
         toggle(performance, 'debug-logging', 'Logs de depuração', 'Aplicado na próxima ativação da extensão.');
@@ -88,7 +110,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         const panelOptions = dependent(panel, 'panel-enabled', 'Aparência e comportamento',
             'No Overview, o estilo personalizado é suspenso. Após o Overview fechar, o fundo passa da cor opaca do Overview à transparência configurada em 250 ms; textos e ícones permanecem opacos.');
         choice(panelOptions, 'panel-style', 'Cor do fundo', ['theme', 'light', 'dark'], ['Do tema', 'Clara', 'Escura']);
-        toggle(panelOptions, 'panel-blur', 'Blur no fundo da barra', 'Usa os parâmetros da aba Blur. Suspenso no Overview e quando o fundo está opaco.');
+        toggle(panelOptions, 'panel-blur', 'Efeitos no fundo da barra', 'Usa os parâmetros da aba Blur. Suspenso no Overview e quando o fundo está opaco.');
         toggle(panelOptions, 'panel-remove-gap', 'Remover lacuna entre a barra e janelas maximizadas', 'Posiciona o topo da janela 1 px sob a borda inferior da barra para fechar a junção, sem aumentar o painel.');
         toggle(panelOptions, 'panel-auto-opacity', 'Opacidade automática', 'Considera as janelas do workspace no monitor da barra.');
         number(panelOptions, 'panel-opacity', 'Opacidade normal', 0, 1, 0.05);
@@ -99,7 +121,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         toggle(group(docks, 'Integração com docks', 'Detecta Dash to Dock e Ubuntu Dock por seus atores, sem importar outra extensão.'),
             'docks-enabled', 'Ativar integração');
         const dockOptions = dependent(docks, 'docks-enabled', 'Fundo do dock');
-        toggle(dockOptions, 'dock-blur', 'Aplicar blur');
+        toggle(dockOptions, 'dock-blur', 'Aplicar efeitos de fundo');
         number(dockOptions, 'dock-opacity', 'Opacidade do fundo', 0, 1, 0.05);
         toggle(dockOptions, 'dock-invisible-overview', 'Fundo invisível no Overview', 'Mantém ícones e interação disponíveis. Fundo, contorno e sombra usam fade de 250 ms ao entrar e sair.');
 
@@ -119,7 +141,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             'opacity-enabled', 'Ativar transparência seletiva');
         const appOptions = dependent(apps, 'opacity-enabled', 'Fundos dos aplicativos',
             'A disponibilidade depende da versão e dos estilos do aplicativo. Aplicativos Flatpak podem não ler o CSS do host.');
-        toggle(appOptions, 'windows-blur', 'Blur nos fundos transparentes', 'Aplica às integrações selecionadas com fade-in de 250 ms ao mostrar/restaurar ou trazer a janela para a frente. Preserva os pixels opacos do aplicativo.');
+        toggle(appOptions, 'windows-blur', 'Efeitos nos fundos transparentes', 'Aplica às integrações selecionadas com fade-in de 250 ms ao mostrar/restaurar ou trazer a janela para a frente. Preserva os pixels opacos do aplicativo.');
         number(appOptions, 'gtk-background-opacity', 'Opacidade do fundo', 0, 1, 0.05);
         toggle(appOptions, 'opacity-gtk-files-sidebar', 'Barra lateral do Arquivos', 'Para versões com sidebar-pane/content-pane.');
         toggle(appOptions, 'opacity-gtk-menus', 'Menus GTK4', 'Aplica o fundo dos popovers de menu em aplicativos que leem o CSS do usuário.');
@@ -127,7 +149,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         toggle(appOptions, 'opacity-gtk-settings-sidebar', 'Barra lateral do Configurações',
             'Adiciona uma classe CSS via overlay do recurso CcWindow e lançador D-Bus reversível do usuário. Requer gresource e reinício do aplicativo.');
 
-        const maintenance = group(blur, 'Gnome Shell Extended 0.3.10', 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
+        const maintenance = group(blur, 'Gnome Shell Extended 1.5.1', 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
         const reset = new Adw.ActionRow({title: 'Restaurar configurações da extensão'});
         const button = new Gtk.Button({label: 'Restaurar', valign: Gtk.Align.CENTER});
         button.connect('clicked', () => {

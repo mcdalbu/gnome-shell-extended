@@ -1,3 +1,243 @@
+# Validação — Gnome Shell Extended 1.5.1
+
+## Quadrado da textura fosca — 2026-11-14
+
+Reproduzido no GNOME Shell/Mutter 51.1 com blur e distorção desligados.
+`TOP_LEFT` restringia a área de pintura ao primeiro tile de 64×64; o repeat
+não ampliava essa área. `RESIZE_FILL` faz a textura repetir por toda a alocação,
+preservando o tile compartilhado e o caminho sem capturas ou filtros.
+
+- Regressão de pixels sobre fundos uniformes nos temas claro e escuro, em
+  pontos com a mesma fase da textura, além das primeiras linhas e colunas de
+  tiles. Antes da correção, somente a primeira amostra mudava (18 níveis de
+  cinza); as demais não recebiam textura. Depois, todas mudam uniformemente.
+- Verificação de pixels externos para detectar vazamentos, conteúdo pequeno
+  compartilhado e área de pintura igual à área completa da superfície.
+- Dock real Dash to Dock Extended, com blur e distorção desligados, nos dois
+  temas; capturas inspecionadas. Menus, painel, janelas Wayland, Overview e
+  fixture de bloqueio continuam na suíte de textura fosca e restauração.
+- Suíte de samples, cantos, toggles, blur combinado e refração aprovada a 100%.
+  Monitores privados a 125% e 150% cobrem a regressão da textura e o dock real.
+
+Evidências: `validation/frost-before/`,
+`validation/single-samples-corners-controls-combined-refraction-economic-results.json`
+e `validation/single-multi-real-dock-economic-results.json`, com capturas e
+logs correspondentes. Os testes usam D-Bus/Wayland privados e driver xe;
+não reproduzem a sessão exata do usuário nem medem redução percentual de GPU.
+
+# Validação — Gnome Shell Extended 1.5.0
+
+## Cantos do dock e samples — 2026-11-14
+
+GNOME Shell/Mutter 51.1, driver xe, GPU real. D-Bus/Wayland e configurações
+privados; nenhuma alteração no dock ou nas configurações da sessão principal.
+
+- `make zip`: sintaxe de 34 módulos, schema estrito, lifecycle, 55 chaves,
+  migração, integrações e integridade do ZIP.
+- Reproduzida uma coluna sem blur na tangente entre a lateral e a curva do
+  dock: cobertura medida zero nas duas linhas verificadas antes da correção.
+  O recorte binário arredondava para dentro o primeiro pixel de cada linha.
+- As capturas passam a usar cobertura arredondada com antialias no shader,
+  scissor conservador e composição premultiplicada. O recorte do contêiner é
+  preservado. A textura fosca mantém um recorte próprio, sem offscreen novo.
+- Regressão sobre fundo uniforme, com Box blur e Gaussian 5/9/13, nos quatro
+  cantos e por monitor. A cobertura junto às tangentes permanece acima de 60%
+  nas amostras; antes era zero no canto que reproduziu a falha.
+- Kernels Gaussian de 5, 9 e 13 taps, usando 3, 5 e 7 leituras lineares por
+  direção; default 13. Troca ao vivo altera o shader e os pixels do fundo.
+- Fonte quadriculada nas duas direções: os três kernels reduzem o contraste.
+  Overview acompanha a seleção; mesma configuração compartilhada com painel,
+  dock e janelas. O número de leituras não é um benchmark de consumo.
+- Preferências: seis abas e 50 controles, binding das três escolhas e
+  sensibilidade ligada apenas a blur ativo + Fast Gaussian.
+- Dock real Dash to Dock Extended copiado para a sessão privada: três kernels,
+  blur + distorção, alinhamento e primeiro plano opaco. Inspeção das capturas.
+- Matriz dos toggles, janelas Wayland reais, centro plano da lente, recortes,
+  textura fosca, callbacks de dano, limpeza e reinício da extensão aprovados.
+- Repouso sem frames extras; probe de movimento sem alteração de pixels fora
+  das superfícies nas cenas medidas. Sem erros do renderer da extensão.
+
+Evidências em `validation/single-samples-corners-controls-combined-refraction-economic-results.json`
+e `validation/single-multi-real-dock-samples-corners-controls-combined-refraction-economic-results.json`.
+A conferência do dock real também fica em
+`validation/single-multi-real-dock-samples-corners-results.json`, com capturas
+e logs correspondentes. Escalas verificadas: 100%, 125% e 150%.
+
+Na conferência dedicada, a fonte branca fica abaixo do dock e a lixeira está
+desativada na fixture. Uma asserção de pixels impede capturas vazias; a
+inspeção não depende apenas da existência de atores. Não foi medido percentual
+de GPU; GNOME 45–50, outros drivers e a sessão exata da imagem do usuário não
+foram revalidados.
+
+# Validação — Gnome Shell Extended 1.4.0
+
+## Controles independentes — 2026-11-14
+
+GNOME Shell/Mutter 51.1, driver xe, GPU real. Testes em D-Bus/Wayland e
+configurações privados; a instalação principal não é usada pelos testes.
+
+- `make zip`: sintaxe de 33 módulos, schema estrito, lifecycle, 54 chaves,
+  migração de configurações, integrações e integridade do ZIP.
+- Preferências: seis abas e 49 controles visíveis. Blur tem toggle próprio,
+  seletor Box blur/Fast Gaussian e raio. Distorção tem toggle e intensidade.
+  Método/raio seguem apenas o blur; intensidade segue apenas a distorção.
+  Não há seletor de modos nem opções de backend/frequência na interface.
+- Migração em GSettings de Dinâmico, Refração, Combinado e Econômico; método
+  antigo e backend Desativado. Valores novos explícitos são respeitados e
+  a migração não se repete na reativação.
+- Matriz das quatro combinações dos toggles, nos dois métodos, em menu,
+  painel, dock e janelas Wayland reais. A configuração é a mesma em todos.
+- Blur desligado com distorção ligada: nenhuma pirâmide de blur permanece,
+  incluindo caches de screenshots que não foram repintados. Os dois desligados
+  liberam capturas/assinaturas de dano; o painel conserva seu estilo próprio.
+- Textura fosca opcional, sozinha e combinada com efeitos. Em superfícies,
+  ela é pintada acima das capturas, sem entrar na própria amostragem.
+- Pixel tests dos filtros, centro plano da lente, conteúdo opaco e textos;
+  dano da janela-fonte, fechamento de menus e recortes vazios de dock.
+- Probe nativo de movimento/saída da tela sem screenshots durante a animação.
+  Erro médio zero nos pixels externos nos frames medidos. Repouso sem frames
+  extras depois da estabilização.
+- Overview, fixture de bloqueio e restauração do efeito nativo; cold start,
+  dez ciclos de enable/disable e suíte existente de integração.
+- Capturas das preferências e dos efeitos inspecionadas visualmente.
+
+```sh
+GSE_TEST_CONTROLS=1 GSE_TEST_COMBINED=1 GSE_TEST_REFRACTION=1 GSE_TEST_ECONOMIC=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_MULTI=1 GSE_TEST_CONTROLS=1 GSE_TEST_COMBINED=1 GSE_TEST_REFRACTION=1 GSE_TEST_ECONOMIC=1 /usr/bin/python3 tests/headless.py
+```
+
+Evidências: `validation/single-controls-combined-refraction-economic-results.json`
+e `validation/single-multi-controls-combined-refraction-economic-results.json`,
+com logs e capturas correspondentes. Escalas: 100%, 125% e 150%.
+Os nomes históricos dos cenários econômicos/combinados foram mantidos nos
+arquivos de teste; eles agora escrevem os toggles independentes.
+Não foi medido consumo percentual de GPU. GNOME 45–50 e outros drivers não
+foram revalidados. O teste de bloqueio continua limitado à fixture.
+
+# Validação — Gnome Shell Extended 1.3.0
+
+## Vidro com desfoque — 2026-11-14
+
+GNOME Shell/Mutter 51.1, driver xe, GPU real, D-Bus/Wayland e configurações
+privados. Os testes não modificam a instalação da sessão principal.
+
+- `make zip`: 32 módulos, schema estrito, lifecycle, 49 configurações,
+  integrações de CSS/launcher/Ptyxis e ZIP íntegro.
+- Novo modo combinado, com Box blur e Fast Gaussian Blur de 13 taps / sete
+  leituras lineares por direção; normais e refração calculadas depois do blur.
+- Inspeção visual de menus, superfícies sintéticas, janelas Wayland, docks por
+  monitor e Overview nos dois métodos. Textos/ícones continuam nítidos.
+- Fonte quadriculada em duas direções: o desvio de cor do centro caiu para
+  0% da referência com Box blur e cerca de 3,6–3,8% com Fast Gaussian, no raio
+  nominal 24 desta fixture. São medidas de pixels, não de desempenho.
+- Alterar a intensidade da refração preserva o centro plano; raio zero volta
+  ao fundo nítido, conservando a lente. Refração zero conserva o blur.
+- Probe de frames nativos em movimento e saída da tela: erro médio zero nos
+  pixels externos, nos frames medidos para cada método. Sem screenshot durante
+  a animação; marcador opaco identifica a posição realmente desenhada.
+- Duas janelas GTK4/Wayland reais: alteração do fundo quando a janela-fonte se
+  afasta, retorno à composição anterior, conteúdo opaco inalterado e foco.
+  A fonte é deslocada amplamente porque blur forte apaga a fase de faixas finas.
+- Recortes vazios do dock, troca econômico/combinado, reinício já no combinado,
+  limpeza de efeitos e restauração do efeito nativo na fixture de bloqueio.
+- Zero frames em repouso após estabilização nos dois filtros e no econômico.
+- Preferências: seis abas/49 controles, quarto modo, seletor de filtro,
+  bindings e sensibilidade independente dos controles de raio/refração.
+- Suíte existente de integração passou; o econômico manteve textura
+  compartilhada, nenhuma captura e proteção de redesenho completo desligada.
+
+```sh
+GSE_TEST_COMBINED=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_NO_OPTIONAL=1 GSE_TEST_MULTI=1 GSE_TEST_COMBINED=1 GSE_TEST_ECONOMIC=1 /usr/bin/python3 tests/headless.py
+```
+
+Resultados: `validation/single-combined-results.json` e
+`validation/fallback-multi-combined-economic-results.json`, ambos com
+`passed: true`. Escalas 100%, 125% e 150%; sem erros JS/shader ou geração
+excessiva de variantes nos logs do Shell. Não foi feito benchmark de GPU,
+nem revalidação de GNOME 45–50, outros drivers ou intellihide do dock real.
+
+# Validação — Gnome Shell Extended 1.2.0
+
+## Refração e textura econômica — 2026-11-14
+
+GNOME Shell/Mutter 51.1, driver xe, GPU real, D-Bus e Wayland privados.
+A extensão não foi instalada na sessão principal.
+
+- `make zip`: sintaxe de 31 módulos, schema estrito, lifecycle, 48 configurações,
+  restauração de CSS/launcher/Ptyxis e integridade do ZIP.
+- Shader GLSL inspirado em LiquidGlass.fx: normais do contorno arredondado,
+  refração nas bordas e centro plano. Sem normal map externo ou blur.
+- Pixels comparados em duas intensidades: alteração junto à borda; centro e
+  região externa preservados. Capturas inspecionadas visualmente.
+- Probe em `after-paint`, sem screenshots durante as animações: movimento
+  horizontal, saída pela borda superior e ocultação. Sem alteração dos pixels
+  fora da superfície nos frames medidos. Um marcador opaco identifica a posição
+  efetivamente renderizada, independentemente do relógio da animação.
+- O teste detectou um frame de atraso do backdrop por alocação tardia; aplicar
+  a posição por translação no mesmo frame eliminou a diferença medida.
+- Docks sintéticos em cada monitor: captura por view, clip vazio e restauração.
+  Não foi repetido o teste de intellihide com o dock real nesta versão.
+- Duas janelas GTK4/Wayland reais: refração em região translúcida, atualização
+  ao mover a janela-fonte, conteúdo opaco inalterado e primeiro plano a 255.
+- Shader compartilhado entre as superfícies, sem geração excessiva de variantes.
+- Refração → econômico → refração, reinício da extensão já na refração,
+  limpeza ao desativar e zero frames em repouso após estabilização.
+- Overview com papel de parede próprio e fixture de bloqueio: apenas a textura
+  de fundo é distorcida; desativar restaura o efeito nativo de bloqueio.
+- Textura econômica com iluminação pré-calculada por normais inspecionada nos
+  temas claro e escuro; compartilhamento de 64 × 64, ausência de capturas,
+  redesenho parcial, opacidade zero e backend desligado confirmados.
+- Preferências: seis abas, 48 controles, bindings e sensibilidade por modo.
+  A suíte gráfica existente também passou nas duas configurações abaixo.
+
+```sh
+GSE_TEST_REFRACTION=1 GSE_TEST_ECONOMIC=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_NO_OPTIONAL=1 GSE_TEST_MULTI=1 GSE_TEST_REFRACTION=1 GSE_TEST_ECONOMIC=1 /usr/bin/python3 tests/headless.py
+```
+
+Evidências locais em `validation/single-refraction-economic-results.json` e
+`validation/fallback-multi-refraction-economic-results.json`, com capturas e
+logs correspondentes. Escalas: 100%, 125% e 150%; backend opcional presente
+na primeira sessão e ausente na segunda. Sem JS ERROR ou erros de shader.
+Não foi medido percentual de consumo da GPU. GNOME 45–50 e outros drivers
+não foram revalidados; o fallback de driver sem cópia de framebuffer não foi
+exercitado em hardware sem essa capacidade.
+
+# Validação — Gnome Shell Extended 1.1.0
+
+## Modos de aparência — 2026-11-14
+
+Testes em GNOME Shell/Mutter 51.1, GPU real, D-Bus/Wayland privados e
+configurações temporárias. Nenhuma instalação na sessão principal.
+
+- Schema, sintaxe, lifecycle e integrações: `make zip` (30 módulos e 47 configurações).
+- Modo dinâmico como padrão; alternância imediata e reinício da extensão já no econômico.
+- Econômico: nenhuma captura/efeito de blur ativo, sem assinatura de dano do fundo,
+  proteção de redraw completo desativada durante a pintura e zero frames em repouso.
+- Textura compartilhada de 64 × 64 px; temas claro/escuro, opacidade zero,
+  raio zero e backend desativado. Textos e ícones preservam a opacidade.
+- Painel, menus, dock em movimento/recortado, Overview e bloqueio; restauração
+  do efeito nativo de bloqueio e limpeza na desativação.
+- Janelas Wayland translúcidas: aparência, retorno ao dinâmico, retorno ao econômico,
+  geometria, foco e preservação do conteúdo opaco.
+- Preferências: seis abas, bindings de todas as opções e sensibilidade dos
+  controles exclusivos do dinâmico; captura visual inspecionada.
+- Suíte de integração existente executada junto com os novos cenários.
+
+Execuções aprovadas:
+
+```sh
+GSE_TEST_ECONOMIC=1 python3 tests/headless.py
+GSE_TEST_NO_OPTIONAL=1 GSE_TEST_MULTI=1 GSE_TEST_ECONOMIC=1 python3 tests/headless.py
+```
+
+Resultados: `validation/single-economic-results.json` (100%, backend opcional
+presente) e `validation/fallback-multi-economic-results.json` (125% e 150%,
+backend opcional ausente), ambos com `passed: true`. Sem JS ERROR nos logs.
+A retirada do trabalho de blur foi verificada estruturalmente; não foi medido
+percentual de redução de uso/energia da GPU. GNOME 45–50 não foi revalidado.
+
 # Validação — Gnome Shell Extended 0.3.11
 
 ## Publicação 0.3.11 — 2026-11-13

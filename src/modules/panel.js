@@ -39,7 +39,6 @@ export default class PanelModule {
             settings: this.settings, logger: this.logger,
             enabled: () => !this.disabled && !this.returnPending && (!this.overviewActive || this.overviewOpening) &&
                 this.settings.get_boolean('panel-blur') && this.settings.get_boolean('blur-enabled') &&
-                this.settings.get_int('blur-radius') > 0 && this.settings.get_string('blur-backend') !== 'off' &&
                 (this.appearance?.alpha ?? 1) < 1,
             options: {manageStyle: false, opacity: () => this.appearance?.alpha ?? 1,
                 fade: () => this.fade.value},
@@ -57,7 +56,7 @@ export default class PanelModule {
                 });
         }
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
-            if (key.startsWith('panel-') || key.startsWith('blur-') || key === 'update-frequency')
+            if (key.startsWith('panel-') || key.startsWith('blur-') || key.startsWith('refraction-') || key === 'frosted-glass-enabled' || key === 'update-frequency')
                 this.sync();
         });
         this.signals.connect(St.ThemeContext.get_for_stage(global.stage), 'changed', () => this.sync(true));
@@ -281,7 +280,9 @@ export default class PanelModule {
             const signature = JSON.stringify([color, foreground, alpha,
                 this.settings.get_boolean('panel-blur'), this.settings.get_boolean('blur-enabled'),
                 this.settings.get_int('blur-radius'), this.settings.get_double('blur-brightness'),
-                this.settings.get_string('blur-backend'), this.settings.get_int('update-frequency'),
+                this.settings.get_boolean('blur-filter-enabled'), this.settings.get_string('blur-method'), this.settings.get_string('blur-samples'),
+                this.settings.get_boolean('refraction-enabled'), this.settings.get_double('refraction-strength'),
+                this.settings.get_boolean('frosted-glass-enabled'),
                 this.overviewActive, this.overviewOpening, this.overviewClosing,
                 this.returnPending, this.returning]);
             if (!themeChanged && !this._buttonsDirty && signature === this._appearanceSignature)
