@@ -147,7 +147,8 @@ export const RefractionEffect = GObject.registerClass({
                     buffer.filter = new GlassBlur(cogl, width, height, maximum);
                     buffer.filterMaximum = maximum;
                 }
-                pipeline.set_layer_texture(0, buffer.filter.apply(buffer.texture, blurRadius, this.glassConfig.method, this.glassConfig.samples));
+                pipeline.set_layer_texture(0, buffer.filter.apply(buffer.texture, blurRadius,
+                    this.glassConfig.method, this.glassConfig.samples, this.glassConfig.iterations));
             } else {
                 pipeline.set_layer_texture(0, buffer.texture);
                 if (this.glassConfig?.blurRadius === 0) {

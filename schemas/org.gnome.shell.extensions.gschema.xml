@@ -48,6 +48,12 @@
       <summary>Fast Gaussian sample count</summary>
       <description>5, 9 or 13 taps, using 3, 5 or 7 linear texture reads per direction. Box blur ignores this setting.</description>
     </key>
+    <key name="blur-iterations" type="i">
+      <range min="1" max="8"/>
+      <default>4</default>
+      <summary>Progressive Gaussian iterations</summary>
+      <description>Each iteration adds one horizontal and one vertical pass with decreasing steps. Four iterations use eight passes. Radius is normalized across iteration counts. Box blur ignores this setting.</description>
+    </key>
     <key name="refraction-enabled" type="b">
       <default>false</default>
       <summary>Enable glass distortion</summary>

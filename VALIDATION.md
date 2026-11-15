@@ -1,3 +1,45 @@
+# Validação — Gnome Shell Extended 1.6.0
+
+## Fast Gaussian progressivo — 2026-11-15
+
+Adaptação do encadeamento decrescente de `amilajack/gaussian-blur`, com pares
+horizontal/vertical equilibrados e normalização pela variância. O padrão
+de quatro iterações usa oito passadas de filtro. Nas superfícies, cada passada
+reutiliza os dois render targets existentes; a captura do fundo não se repete
+por passada. O Box blur mantém o algoritmo anterior.
+
+- Degraus de cor independentes nos dois eixos, raio 64 e 9 taps: RMSE do perfil
+  renderizado contra uma curva Gaussian caiu de 0,03670 com uma iteração para
+  0,00271 com quatro e 0,00267 com oito (RGB normalizado, escala 100%).
+  Nenhum ringing acima da tolerância de quantização; perfis iguais nos eixos.
+- Troca ao vivo entre 1/4/8 iterações altera os pixels, atualiza o painel e
+  reconstrói a cadeia de filtros do Overview com 2/8/16 passadas.
+- Kernels 5/9/13 renderizados sobre quadriculado de 32 px; todos reduzem o
+  contraste e as escolhas continuam produzindo pixels diferentes.
+- Matriz completa a 100% e com monitores privados a 125%/150%: iterações,
+  samples, borda do painel, cantos do dock e limpeza aprovados.
+- Toggles independentes, combinação com refração, janelas Wayland reais,
+  restauração e dez ciclos de ativação/desativação aprovados. Preferências:
+  seis páginas e 51 controles, incluindo binding e sensibilidade das iterações.
+- Zero frames em repouso na amostra final; sem JS ERROR ou erros de shader.
+  Não foi medido ganho de CPU/GPU nem o custo relativo das novas iterações.
+
+```sh
+make build
+GSE_TEST_GAUSSIAN_ITERATIONS=1 GSE_TEST_SAMPLES=1 GSE_TEST_PANEL_EDGE=1 GSE_TEST_DOCK_CORNERS=1 GSE_TEST_CONTROLS=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_GAUSSIAN_ITERATIONS=1 GSE_TEST_SAMPLES=1 GSE_TEST_PANEL_EDGE=1 GSE_TEST_DOCK_CORNERS=1 GSE_TEST_MULTI=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_COMBINED=1 /usr/bin/python3 tests/headless.py
+make zip
+```
+
+Evidências: `validation/single-samples-corners-controls-panel-edge-iterations-results.json`,
+`validation/single-multi-samples-corners-panel-edge-iterations-results.json` e
+`validation/single-combined-results.json`. Uma execução com todas as flags
+agrupadas teve timeout D-Bus ao iniciar uma screenshot no cenário combinado;
+o cenário combinado isolado e as matrizes acima passaram.
+GNOME Shell/Mutter 51.1, driver xe, D-Bus/Wayland privados. GNOME 45–50,
+outros drivers e autenticação de bloqueio real não foram revalidados.
+
 # Validação — Gnome Shell Extended 1.5.2
 
 ## Primeira linha do painel — 2026-11-15

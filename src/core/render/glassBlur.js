@@ -2,7 +2,7 @@
 import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
-import {gaussianKernels, gaussianSource} from './gaussianKernels.js';
+import {gaussianKernels, gaussianSource, gaussianSteps} from './gaussianKernels.js';
 
 const box = `
     vec2 uv = cogl_tex_coord_in[0].xy;
@@ -12,6 +12,7 @@ const box = `
     cogl_color_out = color / 9.0;
 `;
 const snippets = new Map();
+const boxSteps = Object.freeze([1, 1, 1]);
 
 function pipeline(context, method = null, samples = 13) {
     const result = Cogl.Pipeline.new(context);
@@ -62,7 +63,7 @@ export class GlassBlur {
             0, 0, destination.width, destination.height, 0, 0, 1, 1);
     }
 
-    apply(source, radius, method, samples = 13) {
+    apply(source, radius, method, samples = 13, iterations = 4) {
         for (const level of this.levels) {
             this._draw(level, source, this.copy);
             source = level.texture;
@@ -74,12 +75,13 @@ export class GlassBlur {
         const shader = this.filters.get(key);
         const step = radius / this.reduction / (method === 'fast-gaussian' ? gaussianKernels[samples].support : 8);
         const location = shader.get_uniform_location('blurStep');
-        // Three box iterations approximate a Gaussian; the weighted Gaussian
-        // kernel needs one horizontal and one vertical pass.
-        for (let pass = 0; pass < (method === 'box' ? 3 : 1); pass++) {
-            shader.set_uniform_float(location, 2, 1, [step / output.width, 0]);
+        // Reuse the same two targets for progressive Gaussian H/V pairs.
+        // Each pass reads the preceding result; never sample the draw target.
+        const steps = method === 'box' ? boxSteps : gaussianSteps(iterations);
+        for (const factor of steps) {
+            shader.set_uniform_float(location, 2, 1, [step * factor / output.width, 0]);
             this._draw(this.scratch, output.texture, shader);
-            shader.set_uniform_float(location, 2, 1, [0, step / output.height]);
+            shader.set_uniform_float(location, 2, 1, [0, step * factor / output.height]);
             this._draw(output, this.scratch.texture, shader);
         }
         output.framebuffer.flush();
@@ -91,7 +93,7 @@ const wallpaperSnippets = new Map();
 
 // Actor-source wallpaper filters use Clutter's cached offscreen chain. Each
 // pass reads the preceding pass after it has painted, never an old CPU copy.
-export function wallpaperBlurPasses(actor, radius, method, samples = 13) {
+export function wallpaperBlurPasses(actor, radius, method, samples = 13, iterations = 4) {
     const key = method === 'fast-gaussian' ? `${method}:${samples}` : method;
     const fragment = (method === 'fast-gaussian' ? gaussianSource(samples) : box)
         .replaceAll('blurStep', 'vec2(blurStepX, blurStepY)')
@@ -103,7 +105,8 @@ export function wallpaperBlurPasses(actor, radius, method, samples = 13) {
             return texture2D(image, clamp(uv, edge, vec2(1.0)-edge));
         }`;
     const effects = [];
-    for (let pass = 0; pass < (method === 'box' ? 3 : 1); pass++) {
+    const steps = method === 'box' ? boxSteps : gaussianSteps(iterations);
+    for (const factor of steps) {
         for (const axis of [0, 1]) {
             let effect;
             if (Clutter.ShaderEffect.new_with_snippet) {
@@ -121,6 +124,7 @@ export function wallpaperBlurPasses(actor, radius, method, samples = 13) {
             effect.blurAxis = axis;
             effect.blurMethod = method;
             effect.blurSamples = samples;
+            effect.blurFactor = factor;
             updateWallpaperBlur(effect, actor, radius);
             effects.push(effect);
         }
@@ -129,7 +133,7 @@ export function wallpaperBlurPasses(actor, radius, method, samples = 13) {
 }
 
 export function updateWallpaperBlur(effect, actor, radius) {
-    const step = radius / (effect.blurMethod === 'box' ? 8 : gaussianKernels[effect.blurSamples].support);
+    const step = radius * effect.blurFactor / (effect.blurMethod === 'box' ? 8 : gaussianKernels[effect.blurSamples].support);
     for (const [name, number] of Object.entries({
         blurClampX: Math.min(0.49, 2 / Math.max(1, actor.width)),
         blurClampY: Math.min(0.49, 2 / Math.max(1, actor.height)),

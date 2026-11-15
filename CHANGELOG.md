@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.0 — 2026-11-15
+
+- Fast Gaussian Blur com passadas progressivas, inspirado em amilajack/gaussian-blur.
+- Adiciona controle de 1 a 8 iterações; o padrão 4 usa oito passadas alternadas e texturas temporárias reutilizadas.
+- Equilibra os eixos e normaliza os passos para manter a intensidade do raio ao mudar a qualidade.
+- Aplica o ajuste a superfícies, painel, docks, integrações de janelas e papel de parede; mantém samples 5/9/13 e Box blur independente.
+- Verifica o perfil de pixels contra uma curva Gaussian, alteração ao vivo, preferências e a correção da primeira linha do painel.
+
 ## 1.5.2 — 2026-11-15
 
 - Corrige a linha sem blur no topo do painel: o arredondamento da captura passa a incluir todos os pixels tocados, respeitando os limites do framebuffer e o recorte da superfície.

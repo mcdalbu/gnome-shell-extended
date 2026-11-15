@@ -34,8 +34,17 @@ do [glsl-fast-gaussian-blur](https://github.com/Experience-Monks/glsl-fast-gauss
 Copyright (c) 2015 Jam3, sob MIT. A adaptação usa Cogl, filtragem linear,
 passadas horizontal/vertical e redução de resolução antes da refração.
 
+O encadeamento progressivo em `gaussianKernels.js`/`glassBlur.js` foi inspirado
+em [`amilajack/gaussian-blur`, `src/index.ts`](https://github.com/amilajack/gaussian-blur/blob/master/src/index.ts),
+Copyright (c) 2018-present Amila, sob a mesma licença MIT abaixo. Na adaptação,
+cada iteração usa um par horizontal/vertical equilibrado, os passos decrescentes
+são normalizados pela variância e os dois render targets são reutilizados.
+A referência alterna eixos com passos diferentes e usa wrap REPEAT; no Shell,
+mantemos CLAMP_TO_EDGE para não trazer pixels da borda oposta do monitor.
+
 > The MIT License (MIT)
 > Copyright (c) 2015 Jam3
+> Copyright (c) 2018-present Amila
 >
 > Permission is hereby granted, free of charge, to any person obtaining a copy
 > of this software and associated documentation files (the "Software"), to deal

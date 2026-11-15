@@ -39,6 +39,8 @@ if os.environ.get('GSE_TEST_ECONOMIC'):
     VARIANT += '-economic'
 if os.environ.get('GSE_TEST_PANEL_EDGE'):
     VARIANT += '-panel-edge'
+if os.environ.get('GSE_TEST_GAUSSIAN_ITERATIONS'):
+    VARIANT += '-iterations'
 
 
 
@@ -207,6 +209,9 @@ def test():
         if os.environ.get('GSE_TEST_PANEL_EDGE'):
             from panel_edge import run as test_panel_edge
             test_panel_edge(evaluate, wait, check, screenshot, results)
+        if os.environ.get('GSE_TEST_GAUSSIAN_ITERATIONS'):
+            from gaussian_iterations import run as test_gaussian_iterations
+            test_gaussian_iterations(evaluate, wait, check, screenshot, results)
         if os.environ.get('GSE_TEST_SAMPLES'):
             from gaussian_samples import run as test_samples
             test_samples(evaluate, wait, check, screenshot, results)

@@ -19,3 +19,17 @@ export function gaussianSource(samples) {
     }
     return body + 'cogl_color_out = color;';
 }
+
+// Progressively smaller passes, inspired by amilajack/gaussian-blur (MIT).
+// Each iteration is a balanced H/V pair. Normalize variance so increasing
+// quality does not multiply the configured blur radius. Eight pairs have
+// total support below 3 * radius, within the shared capture's padding.
+const iterationSteps = new Map();
+export function gaussianSteps(iterations = 4) {
+    if (!iterationSteps.has(iterations)) {
+        const normalization = Math.sqrt(iterations * (iterations + 1) * (2 * iterations + 1) / 6);
+        iterationSteps.set(iterations, Object.freeze(Array.from({length: iterations},
+            (_, i) => (iterations - i) / normalization)));
+    }
+    return iterationSteps.get(iterations);
+}

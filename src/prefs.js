@@ -82,6 +82,8 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         const samplesControl = choice(blurOptions, 'blur-samples', 'Samples do Fast Gaussian',
             ['13', '9', '5'], ['13 taps', '9 taps', '5 taps'],
             '13, 9 e 5 taps usam 7, 5 e 3 leituras de textura por direção.');
+        const iterationsControl = number(blurOptions, 'blur-iterations', 'Iterações do Fast Gaussian', 1, 8, 1,
+            'Passos progressivamente menores suavizam o desfoque. Cada iteração usa duas passadas na GPU; o padrão 4 usa oito passadas.');
         const glassOptions = group(blur, 'Vidro', 'A distorção pode ser usada sozinha ou combinada com o blur.');
         toggle(glassOptions, 'refraction-enabled', 'Ativar distorção do vidro');
         const strengthControl = number(glassOptions, 'refraction-strength', 'Intensidade da distorção', 0, 24, 0.5);
@@ -94,6 +96,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             for (const control of blurControls)
                 control.sensitive = settings.get_boolean('blur-filter-enabled');
             samplesControl.sensitive = settings.get_boolean('blur-filter-enabled') && settings.get_string('blur-method') === 'fast-gaussian';
+            iterationsControl.sensitive = samplesControl.sensitive;
             strengthControl.sensitive = settings.get_boolean('refraction-enabled');
         };
         for (const key of ['blur-filter-enabled', 'blur-method', 'refraction-enabled'])

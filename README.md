@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **1.5.2**.
+preferências GTK4/Libadwaita. Versão **1.6.0**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -14,7 +14,7 @@ Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md
 | Docks | Dash to Dock/Ubuntu Dock: blur, opacidade do fundo e fundo invisível no Overview, preservando os ícones |
 | Sombras | Grade, pastas, dock e Alt+Tab; intensidade, raio e deslocamentos |
 | Aplicativos | Integração opcional por CSS para barras laterais do Nautilus/Configurações e menus GTK4; opacidade nativa dos perfis do Ptyxis |
-| Preferências | Seis abas, 50 controles, limites de valores e restauração de defaults |
+| Preferências | Seis abas, 51 controles, limites de valores e restauração de defaults |
 
 Por padrão, blur do calendário/configurações rápidas e painel adaptativo ficam
 ativos. Outros elementos podem ser habilitados individualmente. As integrações
@@ -33,6 +33,22 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
 nem de compatibilidade certificada em todas as versões.
+
+## Gaussian progressivo — 1.6.0
+
+O **Fast Gaussian Blur** usa passadas com passos progressivamente menores,
+inspiradas na [demonstração de Amila](https://amilajack.github.io/gaussian-blur/).
+O controle **Iterações do Fast Gaussian** vai de 1 a 8; cada iteração aplica
+uma passada horizontal e uma vertical. O padrão 4 corresponde a oito passadas.
+**9 taps**, quatro iterações e distorção desligada usam o kernel da referência
+com esse encadeamento progressivo.
+
+Na adaptação ao Shell, os dois eixos recebem o mesmo filtro e os passos são
+normalizados para preservar a intensidade associada ao raio. Mais iterações
+suavizam a aproximação e aumentam o número de passadas na GPU. As texturas
+temporárias das superfícies são reutilizadas; não há captura por passada.
+O ajuste vale também para o papel de parede no Overview e bloqueio. Box blur
+conserva suas três iterações próprias e ignora esse controle.
 
 ## Blur e vidro — 1.5.0
 
@@ -58,8 +74,8 @@ Usada sozinha, preserva o redesenho parcial e não acompanha danos do fundo.
 O Box blur usa três iterações horizontal/vertical. O Fast Gaussian Blur usa
 kernels de **5, 9 ou 13 taps**, escolhidos em **Samples do Fast Gaussian**.
 Eles usam, respectivamente, **3, 5 ou 7 leituras lineares de textura por direção**.
-13 taps é o padrão e preserva o filtro anterior; menos taps reduz leituras,
-com outra aproximação do desfoque. A opção só fica disponível com blur ligado
+13 taps é o padrão; menos taps reduz leituras em cada passada,
+com outra aproximação do desfoque. Samples e iterações só ficam disponíveis com blur ligado
 e Fast Gaussian selecionado. Os kernels foram adaptados de Experience-Monks sob MIT. Nas superfícies, os filtros usam uma
 pirâmide de redução de 2× a 8×, conforme o raio. No Overview/bloqueio, apenas
 o papel de parede é processado, com o cache de atores do compositor.

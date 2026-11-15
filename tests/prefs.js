@@ -83,6 +83,7 @@ for (const blur of [false, true]) {
 for (const enabled of [false,true]) for (const method of ['box','fast-gaussian']) {
     settings.set_boolean('blur-filter-enabled',enabled);settings.set_string('blur-method',method);
     assert(controls.get('blur-samples').sensitive===(enabled && method==='fast-gaussian'), 'Sample selector sensitivity');
+    assert(controls.get('blur-iterations').sensitive===(enabled && method==='fast-gaussian'), 'Iteration control sensitivity');
 }
 for (const [index,value] of ['13','9','5'].entries()) {
     controls.get('blur-samples').selected=index;

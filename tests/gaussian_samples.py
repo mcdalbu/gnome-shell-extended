@@ -14,9 +14,11 @@ def run(evaluate, wait, check, screenshot, results):
         cfg.set_string('blur-method','fast-gaussian');cfg.set_int('blur-radius',24);
         cfg.set_double('blur-brightness',1);
         globalThis.samplesGrid=new St.Widget({width:global.stage.width,height:global.stage.height});
-        for(let y=0;y<700;y+=16)for(let x=0;x<900;x+=16)
-            samplesGrid.add_child(new St.Widget({x,y,width:16,height:16,
-                style:`background-color:${((x+y)/16)%2?'#e0b040':'#203080'};`}));
+        // Keep features wide enough that progressive 5/9-tap filters do not
+        // both converge to a uniform quantized color before comparison.
+        for(let y=0;y<700;y+=32)for(let x=0;x<900;x+=32)
+            samplesGrid.add_child(new St.Widget({x,y,width:32,height:32,
+                style:`background-color:${((x+y)/32)%2?'#e0b040':'#203080'};`}));
         Main.uiGroup.add_child(samplesGrid);
         globalThis.samplesDock=new St.Widget({name:'dashtodockContainer',x:80,y:200,width:420,height:120});
         samplesDock.add_child(new St.Widget({style_class:'dash-background',width:420,height:120,
@@ -42,7 +44,7 @@ def run(evaluate, wait, check, screenshot, results):
         images.append(image)
         evaluate("cfg.set_boolean('blur-overview',true);Main.overview.show()")
         wait(f'''ext._manager._slots.get('blur').instance.backgrounds?.effects.length>0 && !Main.overview.animationInProgress &&
-            ext._manager._slots.get('blur').instance.backgrounds.effects.every(([,e])=>e.underlay.length===2 && e.underlay.every(p=>p.blurSamples==={samples}))''')
+            ext._manager._slots.get('blur').instance.backgrounds.effects.every(([,e])=>e.underlay.length===2*cfg.get_int('blur-iterations') && e.underlay.every(p=>p.blurSamples==={samples}))''')
         screenshot(f'samples-overview-{samples}')
         evaluate('Main.overview.hide()')
         wait('!Main.overview.visible')

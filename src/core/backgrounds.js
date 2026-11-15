@@ -48,7 +48,8 @@ export class Backgrounds {
         const effect = wallpaperRefraction(actor, this.appearance.strength,
             this.settings.get_double('blur-brightness'));
         effect.underlay = this.appearance.blurRadius > 0
-            ? wallpaperBlurPasses(actor, this.appearance.blurRadius, this.appearance.method, this.appearance.samples) : [];
+            ? wallpaperBlurPasses(actor, this.appearance.blurRadius, this.appearance.method,
+                this.appearance.samples, this.appearance.iterations) : [];
         return effect;
     }
 
@@ -178,8 +179,8 @@ export class Backgrounds {
 
     sync() {
         this.appearance = readAppearance(this.settings);
-        const {capture, frosted, blurRadius, method, samples} = this.appearance;
-        const key = `${capture}:${frosted}:${blurRadius > 0}:${method}:${samples}`;
+        const {capture, frosted, blurRadius, method, samples, iterations} = this.appearance;
+        const key = `${capture}:${frosted}:${blurRadius > 0}:${method}:${samples}:${iterations}`;
         if (key !== this._appearanceKey) {
             this._appearanceKey = key;
             this._clearOverview();

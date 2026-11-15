@@ -34,5 +34,6 @@ export function readAppearance(settings) {
     const frosted = settings.get_boolean('frosted-glass-enabled');
     return {blurRadius, strength, radius, frosted, capture: radius > 0,
         method: settings.get_string('blur-method'), samples: Number(settings.get_string('blur-samples')),
+        iterations: settings.get_int('blur-iterations'),
         blurRatio: blurRadius / (radius || 1), strengthRatio: strength / (radius || 1)};
 }

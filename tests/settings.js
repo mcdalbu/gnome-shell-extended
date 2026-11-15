@@ -38,6 +38,10 @@ assert(settings.get_string('blur-samples')==='13', 'Default 13 taps preserves ex
 for (const samples of ['5','9','13'])
     assert(schema.get_key('blur-samples').range_check(new GLib.Variant('s',samples)), 'Supported sample count');
 assert(!schema.get_key('blur-samples').range_check(new GLib.Variant('s','7')), 'Reject unsupported sample count');
+assert(settings.get_int('blur-iterations')===4, 'Default Gaussian uses eight directional passes');
+assert(!schema.get_key('blur-iterations').range_check(new GLib.Variant('i',0)), 'Reject zero iterations');
+assert(!schema.get_key('blur-iterations').range_check(new GLib.Variant('i',9)), 'Bound Gaussian GPU passes');
+assert(readAppearance(settings).iterations===4, 'Shared Gaussian iteration count');
 // Verify upgrades with a fresh settings state for each old appearance.
 const reset = () => { for (const key of schema.list_keys()) settings.reset(key); };
 for (const [mode, blur, distortion, frost] of [
