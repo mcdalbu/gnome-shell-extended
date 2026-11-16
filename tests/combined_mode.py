@@ -7,7 +7,7 @@ from refraction_mode import run as refraction_suite
 
 def run(evaluate, wait, check, screenshot, results):
     saved = evaluate("Object.fromEntries(['blur-filter-enabled','refraction-enabled','frosted-glass-enabled','blur-method','blur-radius','refraction-strength','blur-brightness','surface-opacity'].map(k=>[k,cfg.get_value(k).deep_unpack()]))")
-    for method in ['box', 'fast-gaussian']:
+    for method in ['box', 'fast-gaussian', 'kawase']:
         evaluate(f"cfg.set_string('blur-method','{method}')")
         prefix = f'combined-{method}-'
         measured = {}
@@ -35,7 +35,7 @@ def run(evaluate, wait, check, screenshot, results):
     rect = tuple(round(v*scale) for v in (230,250,470,400))
     std = lambda image: sum(ImageStat.Stat(image.crop(rect)).stddev)/3
     clear_std = std(clear)
-    for method in ['box', 'fast-gaussian']:
+    for method in ['box', 'fast-gaussian', 'kawase']:
         evaluate(f"cfg.set_string('blur-method','{method}');cfg.set_int('blur-radius',24);comboSurface.update()")
         wait('comboSurface._state.captures.size>0')
         time.sleep(.2)

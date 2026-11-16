@@ -26,6 +26,16 @@ do projeto Windows-Liquid-glass, de Pedro Ruedas (GPL-3.0). A adaptação GLSL/C
 usa o fundo já pintado pelo compositor GNOME; não inclui o código de captura
 de janelas do Windows, dispersão cromática ou as sombras do shader original.
 
+## Kawase (2026-11-16)
+
+`src/core/render/kawase.js` implementa o princípio de passadas diagonais de
+quatro amostras com offsets crescentes, conhecido como Kawase blur.
+Referência conceitual: [ARM, Bandwidth-efficient graphics, SIGGRAPH 2015](https://developer.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_notes.pdf).
+O código foi escrito para este renderer, sem copiar shaders da referência.
+Os offsets são normalizados pela variância do Box existente. Esta versão usa
+ping-pong na resolução reduzida; não implementa a cadeia Dual Kawase de
+redução/reconstrução em múltiplos níveis descrita na apresentação.
+
 ## Fast Gaussian Blur (2026-11-14)
 
 `src/core/render/gaussianKernels.js` e `glassBlur.js` adaptam os pesos e

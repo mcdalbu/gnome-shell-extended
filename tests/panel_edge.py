@@ -29,7 +29,7 @@ def run(evaluate, wait, check, screenshot, results):
     top = round(y*scale)
     clear = ImageStat.Stat(baseline.crop((left, top, right, top+1))).mean[0]
     check('panel-edge-transparency', f'{clear} > 180 && {clear} < 240')
-    for method in ['box', 'fast-gaussian']:
+    for method in ['box', 'fast-gaussian', 'kawase']:
         evaluate(f"cfg.set_string('blur-method','{method}');cfg.set_boolean('blur-filter-enabled',true)")
         wait('edgePanel.binding.surface?._state.captures.size>0')
         time.sleep(.2)

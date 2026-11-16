@@ -26,7 +26,7 @@ def run(evaluate, wait, check, screenshot, results):
     baseline = Image.open(screenshot('dock-corner-clear')).convert('RGB')
     scale = baseline.width/evaluate('global.stage.width')
     geometry = evaluate('cornerDocks.map(d=>[...d.get_transformed_position(),...d.get_transformed_size()])')
-    for method, samples in [('box',13),('fast-gaussian',5),('fast-gaussian',9),('fast-gaussian',13)]:
+    for method, samples in [('box',13),('fast-gaussian',5),('fast-gaussian',9),('fast-gaussian',13),('kawase',13)]:
         evaluate(f"cfg.set_boolean('blur-filter-enabled',true);cfg.set_string('blur-method','{method}');cfg.set_string('blur-samples','{samples}')")
         wait('cornerDocks.every(d=>cornerSurface(d)?._state.captures.size>0)')
         time.sleep(.2)

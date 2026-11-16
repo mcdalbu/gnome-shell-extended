@@ -32,8 +32,9 @@ export function readAppearance(settings) {
     const strength = settings.get_boolean('refraction-enabled') ? settings.get_double('refraction-strength') : 0;
     const radius = Math.max(blurRadius, strength);
     const frosted = settings.get_boolean('frosted-glass-enabled');
+    const method = settings.get_string('blur-method');
     return {blurRadius, strength, radius, frosted, capture: radius > 0,
-        method: settings.get_string('blur-method'), samples: Number(settings.get_string('blur-samples')),
-        iterations: settings.get_int('blur-iterations'),
+        method, samples: Number(settings.get_string('blur-samples')),
+        iterations: settings.get_int(method === 'kawase' ? 'blur-kawase-iterations' : 'blur-iterations'),
         blurRatio: blurRadius / (radius || 1), strengthRatio: strength / (radius || 1)};
 }

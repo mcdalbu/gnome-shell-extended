@@ -87,6 +87,15 @@ export const RefractionEffect = GObject.registerClass({
         if (width <= 0 || height <= 0 || w <= 0 || h <= 0)
             return;
         try {
+            const key = view ? 'view' : 'capture';
+            let buffer = this._buffers.get(key);
+            const reuse = !!(view && this.captureDeferred);
+            // A partial source region must not capture this surface's old
+            // pixels. Reuse a prepared image until the requested native region
+            // is refreshed. New/resized surfaces keep their native tint for
+            // that one frame rather than showing an uninitialized texture.
+            if (reuse && (!buffer || buffer.width !== width || buffer.height !== height))
+                return;
             const cogl = framebuffer.get_context();
             const feature = Cogl.FeatureID.BLIT_FRAMEBUFFER ?? Cogl.FeatureID.OGL_FEATURE_ID_BLIT_FRAMEBUFFER;
             if (feature !== undefined) {
@@ -97,8 +106,6 @@ export const RefractionEffect = GObject.registerClass({
             }
             // Keep at most one real-view buffer and one screenshot buffer per
             // effect; resizing replaces storage rather than retaining old FBOs.
-            const key = view ? 'view' : 'capture';
-            let buffer = this._buffers.get(key);
             if (!buffer || buffer.width !== width || buffer.height !== height) {
                 const texture = Cogl.Texture2D.new_with_size(cogl, width, height);
                 const target = Cogl.Offscreen.new_with_texture(texture);
@@ -136,24 +143,26 @@ export const RefractionEffect = GObject.registerClass({
             }
             // Flush the scene before the blit. Blit ignores source clipping;
             // rounded destination clipping stays active for the final draw.
-            framebuffer.flush();
-            if (!framebuffer.blit(buffer.target, left, top, 0, 0, width, height))
-                throw new Error('Framebuffer blit failed');
             const pipeline = buffer.pipeline;
             const blurRadius = this.combined ? this.radius * (this.glassConfig?.blurRatio ?? 0) * scale : 0;
-            if (blurRadius > 0) {
-                const maximum = (this.glassConfig?.blurRadius ?? 0) * scale;
-                if (!buffer.filter || buffer.filterMaximum !== maximum) {
-                    buffer.filter = new GlassBlur(cogl, width, height, maximum);
-                    buffer.filterMaximum = maximum;
-                }
-                pipeline.set_layer_texture(0, buffer.filter.apply(buffer.texture, blurRadius,
-                    this.glassConfig.method, this.glassConfig.samples, this.glassConfig.iterations));
-            } else {
-                pipeline.set_layer_texture(0, buffer.texture);
-                if (this.glassConfig?.blurRadius === 0) {
-                    buffer.filter = null;
-                    buffer.filterMaximum = 0;
+            if (!reuse) {
+                framebuffer.flush();
+                if (!framebuffer.blit(buffer.target, left, top, 0, 0, width, height))
+                    throw new Error('Framebuffer blit failed');
+                if (blurRadius > 0) {
+                    const maximum = (this.glassConfig?.blurRadius ?? 0) * scale;
+                    if (!buffer.filter || buffer.filterMaximum !== maximum) {
+                        buffer.filter = new GlassBlur(cogl, width, height, maximum);
+                        buffer.filterMaximum = maximum;
+                    }
+                    pipeline.set_layer_texture(0, buffer.filter.apply(buffer.texture, blurRadius,
+                        this.glassConfig.method, this.glassConfig.samples, this.glassConfig.iterations));
+                } else {
+                    pipeline.set_layer_texture(0, buffer.texture);
+                    if (this.glassConfig?.blurRadius === 0) {
+                        buffer.filter = null;
+                        buffer.filterMaximum = 0;
+                    }
                 }
             }
             const uniform = (name, value) => pipeline.set_uniform_1f(pipeline.get_uniform_location(name), value);
@@ -190,15 +199,19 @@ export function refractionBackend(combined = false) {
 
 // Wallpaper already has a source texture; distort that texture instead of
 // capturing unrelated Shell layers or the lock screen's foreground controls.
-export function wallpaperRefraction(actor, strength, brightness) {
+export function wallpaperRefraction(actor, strength, brightness, opaque = false) {
     const declarations = `uniform float strength; uniform float glassWidth;
-        uniform float glassHeight; uniform float brightness; ${normalSource}`;
+        uniform float glassHeight; uniform float brightness; uniform float wallpaperOpaque; ${normalSource}`;
     const fragment = `
         vec2 uv = cogl_tex_coord_in[0].xy;
         vec2 size = vec2(glassWidth, glassHeight);
         vec2 d = glassOffset(uv * size, size, 0.0, strength) / size;
-        cogl_color_out = texture2D(SAMPLER, clamp(uv+d, vec2(0.001), vec2(0.999)))
-            * cogl_color_in * vec4(vec3(brightness), 1.0);`;
+        vec4 color = texture2D(SAMPLER, clamp(uv+d, vec2(0.001), vec2(0.999)));
+        // The panel's wallpaper is opaque. Normalize premultiplied coverage
+        // at the offscreen border instead of revealing unrelated windows.
+        if (wallpaperOpaque > 0.5)
+            color = vec4(color.rgb / max(color.a, 0.0001), 1.0);
+        cogl_color_out = color * cogl_color_in * vec4(vec3(brightness), 1.0);`;
     let effect;
     if (Clutter.ShaderEffect.new_with_snippet) {
         if (!wallpaperSnippet) {
@@ -211,12 +224,13 @@ export function wallpaperRefraction(actor, strength, brightness) {
         effect.set_shader_source(`uniform sampler2D tex; ${declarations}
             void main() { ${fragment.replace('SAMPLER', 'tex')} }`);
     }
+    effect.wallpaperOpaque = opaque;
     setWallpaperStrength(effect, actor, strength, brightness);
     return effect;
 }
 
 export function setWallpaperStrength(effect, actor, strength, brightness) {
-    for (const [name, number] of Object.entries({strength, brightness,
+    for (const [name, number] of Object.entries({strength, brightness, wallpaperOpaque: effect.wallpaperOpaque ? 1 : 0,
         glassWidth: Math.max(1, actor.width), glassHeight: Math.max(1, actor.height)})) {
         const value = new GObject.Value();
         value.init(GObject.TYPE_FLOAT);

@@ -3,6 +3,7 @@ import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 import {applyBlurParameters, applyBlurRate} from '../blurBackend.js';
+import {kawasePadding} from './kawase.js';
 
 const CaptureView = GObject.registerClass(class GseCaptureView extends Clutter.Effect {
     vfunc_paint(_node, context, _flags) {
@@ -105,16 +106,21 @@ export function syncBackdropCapture(state, view, backend, radiusProperty, radius
     const physicalRadius = Math.round(geometryRadius * scale);
     const steps = Math.max(0, Math.ceil(Math.log2(Math.max(1, physicalRadius / 12))));
     const tile = Math.max(64, 2 ** steps);
-    const padding = Math.ceil(3 * geometryRadius * scale);
+    const compact = capture.effect.isRefraction && state.glassConfig.method === 'kawase';
+    const padding = compact
+        ? kawasePadding(state.glassConfig.blurRadius, state.glassConfig.strength, scale, state.glassConfig.iterations)
+        : Math.ceil(3 * geometryRadius * scale);
     const gridLeft = Math.floor(((x - layout.x) * scale - padding) / tile) * tile;
     const gridTop = Math.floor(((y - layout.y) * scale - padding) / tile) * tile;
     // Reserve an extra tile for the offset from the window to the grid.
     // Constant capture dimensions prevent backend downscale thresholds
     // and FBO allocations from changing while a window only moves.
-    // Both backends stop downsampling when either dimension is <= 256.
+    // Legacy backends stop downsampling when either dimension is <= 256.
     // Give thin panels and large windows the same radius-driven sampling
     // resolution, rather than letting their shapes choose the filter.
-    const minimum = steps ? 256 * 2 ** (steps - 1) + tile : tile;
+    // Our Kawase renderer reduces independently of capture dimensions and
+    // does not need that legacy minimum, especially for thin panels/docks.
+    const minimum = compact ? tile : steps ? 256 * 2 ** (steps - 1) + tile : tile;
     const viewWidth = Math.round(layout.width * scale);
     const viewHeight = Math.round(layout.height * scale);
     const captureWidth = Math.min(viewWidth,

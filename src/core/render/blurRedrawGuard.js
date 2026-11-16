@@ -7,7 +7,8 @@ const owners = new Set();
 let changedFlags = false;
 
 export class BlurRedrawGuard {
-    constructor(clutter, meta) {
+    constructor(clutter, meta, settings = null) {
+        this._settings = settings;
         this._api = typeof clutter.get_debug_flags === 'function' ? {
             get: () => clutter.get_debug_flags(),
             add: flag => clutter.add_debug_flags(0, flag, 0),
@@ -27,6 +28,19 @@ export class BlurRedrawGuard {
         if (!force && view && !this._intersects(actor, view.layout) &&
             (source === actor || !this._intersects(source, view.layout)))
             return;
+        if (this._settings?.get_string('blur-render-area') === 'elements') {
+            if (this._regional?.begin(this, actor, view, source)) {
+                this._usingRegional = true;
+                return;
+            }
+            if (!this._regionalLoading) {
+                this._regionalLoading = import('./regionalRedraw.js').then(api => {
+                    this._regional = api;
+                    if (!this._destroyed && api.supported)
+                        global.stage.queue_redraw();
+                }).catch(() => {});
+            }
+        }
         if (owners.size === 0) {
             const [, drawFlags] = this._api.get();
             changedFlags = (drawFlags & this._flag) === 0;
@@ -45,11 +59,21 @@ export class BlurRedrawGuard {
     }
 
     end() {
+        if (this._usingRegional) {
+            this._regional.end(this);
+            this._usingRegional = false;
+        }
         if (!owners.delete(this) || owners.size !== 0)
             return;
         // Preserve a flag already enabled by the user or another extension.
         if (changedFlags)
             this._api.remove(this._flag);
         changedFlags = false;
+    }
+
+    destroy() {
+        this._destroyed = true;
+        this.end();
+        this._regional?.cancel(this);
     }
 }

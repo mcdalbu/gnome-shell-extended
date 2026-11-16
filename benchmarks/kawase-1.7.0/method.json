@@ -1,0 +1,79 @@
+{
+  "profile": "kawase",
+  "package_metadata": {
+    "uuid": "gnome-shell-extended@mcda",
+    "name": "Gnome Shell Extended",
+    "url": "https://github.com/mcdalbu/gnome-shell-extended",
+    "description": "Blur e transpar\u00eancia no GNOME Shell, painel adaptativo, docks, sombras e integra\u00e7\u00e3o opcional com GTK/Ptyxis.",
+    "shell-version": [
+      "45",
+      "46",
+      "47",
+      "48",
+      "49",
+      "50",
+      "51"
+    ],
+    "version": 24,
+    "version-name": "1.7.0",
+    "settings-schema": "org.gnome.shell.extensions.gnome-shell-extended",
+    "session-modes": [
+      "user",
+      "unlock-dialog"
+    ]
+  },
+  "resolution": [
+    1440,
+    1000
+  ],
+  "radius": 24,
+  "strength": 6,
+  "brightness": 0.8,
+  "opacity": 0.85,
+  "durationActiveSeconds": 12.0,
+  "durationIdleSeconds": 2.0,
+  "durationAnimationWarmupSeconds": 4,
+  "repetitions": 3,
+  "package_sha256": "41419a6b60ff37b30c537a4dd951313f6927dc306f49bbe6e4377cb5fbc4ea2b",
+  "gpu": "00:00.0 Host bridge [0600]: Intel Corporation Core Ultra 200V Series Processors with 4 P-Cores 4 E-Cores Host Bridge [8086:6400] (rev 04)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n00:02.0 VGA compatible controller [0300]: Intel Corporation Core Ultra 200V Series Processors Arc Graphics 130V/140V GPU [8086:64a0] (rev 04)\n\tDeviceName: Onboard - Video\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: xe\n\tKernel modules: xe\n00:04.0 Signal processing controller [1180]: Intel Corporation Core Ultra 200V Series Processors Dynamic Tuning Technology (DTT) [8086:641d] (rev 04)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: proc_thermal_pci\n\tKernel modules: processor_thermal_device_pci\n00:07.0 PCI bridge [0604]: Intel Corporation Core Ultra 200V Series Processors USB Type-C Subsystem PCIe Root Port #21 [8086:a84e] (rev 10)\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: pcieport\n\tKernel modules: shpchp\n00:07.1 PCI bridge [0604]: Intel Corporation Core Ultra 200V Series Processors USB Type-C Subsystem PCIe Root Port #22 [8086:a84f] (rev 10)\n\tKernel driver in use: pcieport\n\tKernel modules: shpchp\n00:0a.0 Signal processing controller [1180]: Intel Corporation Core Ultra 200V Series Processors Crash Log and Telemetry [8086:647d] (rev 04)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: intel_vsec\n\tKernel modules: intel_vsec\n00:0b.0 Processing accelerators [1200]: Intel Corporation Core Ultra 200V Series Processors NPU [8086:643e] (rev 04)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:20bf]\n\tKernel driver in use: intel_vpu\n\tKernel modules: intel_vpu\n00:0d.0 USB controller [0c03]: Intel Corporation Core Ultra 200V Series Processors Type-C Subsystem xHCI [8086:a831] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:201f]\n\tKernel driver in use: xhci_hcd\n\tKernel modules: xhci_pci\n00:0d.2 USB controller [0c03]: Intel Corporation Core Ultra 200V Series Processors Thunderbolt DMA0 [8086:a833] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: thunderbolt\n\tKernel modules: thunderbolt\n00:12.0 Serial controller [0700]: Intel Corporation Core Ultra 200V Series Processors Integrated Sensor Hub (ISH) [8086:a845] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: intel_ish_ipc\n\tKernel modules: intel_ish_ipc\n00:13.0 Communication controller [0780]: Intel Corporation Core Ultra 200V Series Processors CSME HECI #1 [8086:a862] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n00:14.0 USB controller [0c03]: Intel Corporation Core Ultra 200V Series Processors Standalone xHCI Controller [8086:a87d] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:201f]\n\tKernel driver in use: xhci_hcd\n\tKernel modules: xhci_pci\n00:14.2 RAM memory [0500]: Intel Corporation Core Ultra 200V Series Processors Shared SRAM [8086:a87f] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: intel_pmc_ssram_telemetry\n\tKernel modules: intel_pmc_ssram_telemetry\n00:14.3 Network controller [0280]: Intel Corporation BE200 Series Wi-Fi 7 [8086:a840] (rev 10)\n\tDeviceName: Onboard - Ethernet\n\tSubsystem: Intel Corporation Device [8086:00e4]\n\tKernel driver in use: iwlwifi\n\tKernel modules: iwlwifi\n00:14.7 Bluetooth [0d11]: Intel Corporation Device [8086:a876] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: Intel Corporation Device [8086:000e]\n\tKernel driver in use: btintel_pcie\n\tKernel modules: btintel_pcie\n00:15.0 Serial bus controller [0c80]: Intel Corporation Core Ultra 200V Series Processors I2C #0 [8086:a878] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: intel-lpss\n\tKernel modules: intel_lpss_pci\n00:15.1 Serial bus controller [0c80]: Intel Corporation Core Ultra 200V Series Processors I2C #1 [8086:a879] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: intel-lpss\n\tKernel modules: intel_lpss_pci\n00:15.2 Serial bus controller [0c80]: Intel Corporation Core Ultra 200V Series Processors I2C #2 [8086:a87a] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: intel-lpss\n\tKernel modules: intel_lpss_pci\n00:15.3 Serial bus controller [0c80]: Intel Corporation Core Ultra 200V Series Processors I2C #3 [8086:a87b] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: intel-lpss\n\tKernel modules: intel_lpss_pci\n00:16.0 Communication controller [0780]: Intel Corporation Core Ultra 200V Series Processors CSME HECI #1 (CSE) [8086:a870] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: mei_me\n\tKernel modules: mei_me\n00:19.0 Serial bus controller [0c80]: Intel Corporation Core Ultra 200V Series Processors I2C #4 [8086:a850] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: intel-lpss\n\tKernel modules: intel_lpss_pci\n00:1c.0 PCI bridge [0604]: Intel Corporation Core Ultra 200V Series Processors PCIe Root Port #5 [8086:a83c] (rev 10)\n\tKernel driver in use: pcieport\n\tKernel modules: shpchp\n00:1f.0 ISA bridge [0601]: Intel Corporation Core Ultra 200V Series Processors eSPI Controller [8086:a807] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n00:1f.3 Multimedia audio controller [0401]: Intel Corporation Core Ultra 200V Series Processors HD Audio [8086:a828] (rev 10)\n\tDeviceName: Onboard - Sound\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: sof-audio-pci-intel-lnl\n\tKernel modules: snd_sof_pci_intel_lnl, snd_hda_intel\n00:1f.4 SMBus [0c05]: Intel Corporation Lunar Lake-M SMbus Controller [8086:a822] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n00:1f.5 Serial bus controller [0c80]: Intel Corporation Core Ultra 200V Series Processors SPI (flash) Controller [8086:a823] (rev 10)\n\tDeviceName: Onboard - Other\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:10c4]\n\tKernel driver in use: intel-spi\n\tKernel modules: spi_intel_pci\n55:00.0 Non-Volatile memory controller [0108]: Micron Technology Inc 2500 NVMe SSD (DRAM-less) [1344:5425] (rev 01)\n\tSubsystem: Micron Technology Inc Device [1344:1100]\n\tKernel driver in use: nvme\n\tKernel modules: nvme\n",
+  "kernel": "7.3.3-300.fc45.x86_64",
+  "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           42 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Core(TM) Ultra 7 256V\nCPU family:                              6\nModel:                                   189\nThread(s) per core:                      1\nCore(s) per socket:                      8\nSocket(s):                               1\nStepping:                                1\nCPU(s) scaling MHz:                      89%\nCPU max MHz:                             4800.0000\nCPU min MHz:                             400.0000\nBogoMIPS:                                6604.80\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf tsc_known_freq pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid rdt_a rdseed adx smap clflushopt clwb intel_pt sha_ni xsaveopt xsavec xgetbv1 xsaves split_lock_detect user_shstk avx_vnni lass lam wbnoinvd dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp hwp_pkg_req hfi vnmi umip pku ospke waitpkg gfni vaes vpclmulqdq rdpid bus_lock_detect movdiri movdir64b fsrm md_clear serialize pconfig arch_lbr ibt flush_l1d arch_capabilities\nVirtualization:                          VT-x\nL1d cache:                               320 KiB (8 instances)\nL1i cache:                               512 KiB (8 instances)\nL2 cache:                                14 MiB (5 instances)\nL3 cache:                                12 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; PBRSB-eIBRS Not affected; BHI BHI_DIS_S\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace\n",
+  "cases": [
+    {
+      "name": "tint",
+      "blur": false,
+      "lens": false,
+      "frost": false,
+      "method": "box",
+      "samples": 13,
+      "iterations": 4
+    },
+    {
+      "name": "box",
+      "blur": true,
+      "lens": false,
+      "frost": false,
+      "method": "box",
+      "samples": 13,
+      "iterations": 4
+    },
+    {
+      "name": "gaussian-4-iterations",
+      "blur": true,
+      "lens": false,
+      "frost": false,
+      "method": "fast-gaussian",
+      "samples": 13,
+      "iterations": 4
+    },
+    {
+      "name": "kawase",
+      "blur": true,
+      "lens": false,
+      "frost": false,
+      "method": "kawase",
+      "samples": 13,
+      "iterations": 4
+    }
+  ]
+}

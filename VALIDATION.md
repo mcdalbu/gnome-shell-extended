@@ -1,4 +1,92 @@
-# Validação — Gnome Shell Extended 1.6.0
+# Validação — Gnome Shell Extended 1.7.0
+
+## Promoção da beta.3 — 2026-11-16
+
+A versão estável usa o mesmo código de execução da **1.7.0-beta.3 (26)**,
+com revisão **27** e nome **1.7.0** em `metadata.json`. A comparação do pacote
+confere os scripts, estilos e esquemas da beta byte a byte, exceto os metadados.
+O build e a integração headless são verificados novamente para a identificação
+estável. O redesenho por Elementos continua opcional e identificado como
+experimental; as limitações de compatibilidade e das medições abaixo se aplicam.
+
+Build, lifecycle, 59 chaves e integração da identificação estável aprovados.
+A sessão privada conferiu barra estática, região por elemento, imagem real,
+preferências (54 controles), integrações e dez ciclos de ativação/desativação.
+Zero frames na janela final de repouso, inclusive com o elemento regional ativo.
+Os relatórios e a comparação com a beta estão no
+[ZIP de validação da 1.7.0](https://github.com/mcdalbu/gnome-shell-extended/releases/download/v1.7.0/gnome-shell-extended-validation-1.7.0.zip),
+com checksum separado na release.
+
+## Barra estática e redesenho por elemento — 2026-11-16
+
+- `make build`: 37 módulos, esquema estrito, 59 chaves, lifecycle e integrações em memória aprovados. Preferências: seis páginas e 54 controles.
+- Barra estática: sem cópias de framebuffer, assinatura de danos de janelas ou callbacks de frame. A saída dos shaders fica em um cache separado da entrada; durante 61 frames a 100% e 122 frames nas views 125%/150%, houve zero pinturas internas dos filtros.
+- Box, Gaussian e Kawase mantiveram pixels do wallpaper mesmo com uma superfície de outra cor animada atrás da barra. Mudanças no wallpaper atualizaram a imagem; ícones/textos ficaram opacos, e Overview/opacidade 100% liberaram o efeito.
+- Imagem real de faixas: em escalas mistas, o desvio de contraste caiu de 104,86 no raio 1 para 38,92 no raio 24, confirmando desfoque real da imagem. A fonte foi limitada a uma faixa de 184 pixels lógicos de altura com raio 24 e barra de 32, mais a pequena borda dos alvos offscreen.
+- Redesenho regional: observou regiões menores que a view, capturas atualizadas continuamente e ausência de pedidos de refresh para animações fora da captura. Zero frames na janela de repouso com o elemento ainda ativo. Preserva a fila de pintura e o histórico de apresentação nativos; não substitui o painter do stage nem modifica regiões const do compositor.
+- Matriz a 125%/150% com fonte estática, borda da barra, blur combinado com refração, movimento, janelas Wayland reais, restauração e dez ciclos de enable/disable aprovada. O modo pode usar o cache por um frame até que toda a margem de captura seja redesenhada.
+- Dock Dash to Dock Extended real: recolhimento, alinhamento, fades, fechamento de menus e leitura do framebuffer apresentado aprovados com o modo regional; sem erros de shader/JS nem loop de frames em repouso.
+- No ensaio curto a 100%, uma amostra de três segundos sob animação de tela inteira registrou RCS de 2,64% com barra estática e 5,56% com a dinâmica compatível. São observações do Shell privado inteiro, com clocks não fixados, sem repetições suficientes para uma alegação de ganho percentual ou correção dos 20% na sessão do usuário.
+- Na cena de um elemento de 260×180 com uma região pequena animada atrás, amostras de três segundos registraram RCS de 1,05% no regional e 4,20% no compatível a 100%; a 125%/150%, 1,00% e 4,59%. A CPU variou entre os ensaios, sem vencedor consistente. São observações, não um benchmark com frequência fixa, qualidade temporal equivalente ou ganho percentual garantido.
+- GNOME Shell/Mutter 51.1 e Intel xe. Compatibilidade declarada em outras versões continua sem certificação; o modo regional retorna ao compatível se a API necessária não estiver disponível.
+
+```sh
+make build
+GSE_TEST_STATIC_PANEL=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_REGIONAL_REDRAW=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_REGIONAL_REDRAW=1 GSE_TEST_STATIC_PANEL=1 GSE_TEST_PANEL_EDGE=1 GSE_TEST_COMBINED=1 GSE_TEST_MULTI=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_REGIONAL_REDRAW=1 GSE_TEST_REGRESSIONS=1 GSE_TEST_FLICKER=1 GSE_TEST_FLICKER_BLUR=1 /usr/bin/python3 tests/headless.py
+```
+
+Evidências locais: `validation/single-static-panel-results.json`,
+`validation/single-regional-results.json` e
+`validation/single-multi-combined-panel-edge-static-panel-regional-results.json` e
+`validation/flicker-blur-regional-results.json`.
+
+APIs consultadas: [gerenciamento do wallpaper do GNOME](https://github.com/GNOME/gnome-shell/blob/51.1/js/ui/background.js)
+e [fila de redesenho recortada do Clutter](https://github.com/GNOME/mutter/blob/51.1/clutter/clutter/clutter-actor.c).
+
+## Iterações do Kawase — 2026-11-16
+
+- Esquema com `blur-kawase-iterations`, limites 1–8, padrão 3 e independente de `blur-iterations`. Defaults, limites, migração e lifecycle aprovados.
+- Preferências: seis páginas, 52 controles, bindings e sensibilidade exclusiva para blur ativo com Kawase selecionado.
+- Alteração ao vivo para 1/2/3/8 iterações: contagem real de 1/2/3/8 passadas, sem feedback entre textura e alvo. Painel atualizado automaticamente e cadeia do Overview reconstruída enquanto ele está aberto.
+- No raio 64 a 100%, larguras de transição 10–90% de 82/94/102/98 px para 1/2/3/8 iterações. Perfis monotônicos; a normalização mantém a variância ideal, mas o formato da aproximação varia.
+- O padrão de três passos mantém o kernel da beta.1. Não foi repetido o benchmark de GPU para cada quantidade; o relatório histórico não representa uma medição da beta.2.
+
+```sh
+make build
+GSE_TEST_KAWASE=1 GSE_TEST_PANEL_EDGE=1 GSE_TEST_CONTROLS=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_KAWASE=1 GSE_TEST_MULTI=1 GSE_TEST_DOCK_CORNERS=1 /usr/bin/python3 tests/headless.py
+```
+
+Evidências: `validation/single-controls-panel-edge-kawase-results.json` e
+`validation/single-multi-corners-kawase-results.json`.
+
+## Kawase compacto — beta.1, 2026-11-16
+
+Distribuída como beta.1, com o mesmo renderer validado na candidata 1.7.0;
+a mudança de identificação está em `metadata.json` e na documentação.
+
+- `make zip`: metadados, sintaxe, esquema estrito, lifecycle, migração e integrações em memória aprovados.
+- Kawase: três passadas reais de filtro, sem feedback entre o alvo de escrita e a textura lida. Samples/iterações do Gaussian não alteram seus pixels.
+- Degraus nos dois eixos, raios 1/6/24/64/100: transição monotônica e intensidade próxima à do Box. Em 125%/150%, a largura 10–90% no raio 24 foi 39/38 px lógicos no Kawase e 35/36 no Box.
+- Painel: as primeiras três linhas e o centro coincidiram (107/255) no framebuffer e na screenshot; sem faixa sem efeito.
+- Cantos do dock, recortes vazios, movimento, janelas Wayland reais, alteração do fundo, refração combinada, restauração do lock e limpeza de dez ciclos aprovados em escalas mistas.
+- Preferências: seis páginas e 51 controles; a nova escolha preserva os bindings e desabilita qualidade exclusiva do Gaussian. Zero frames na janela de repouso final da suíte funcional; sem erros JS/shader.
+- O benchmark de três repetições **não demonstrou menor ocupação total de GPU no Kawase**. A área de captura caiu 19,25% na cena medida e o filtro caiu para 12 leituras por pixel reduzido, mas isso não é uma economia percentual de GPU comprovada. Consulte `BENCHMARK-KAWASE.md` e os dados brutos.
+- O relato de 20% de GPU com desktop parado não foi reproduzido no compositor privado. Não há declaração de correção do consumo da sessão real nem de compatibilidade validada em todas as versões declaradas do GNOME.
+
+```sh
+make zip
+GSE_TEST_KAWASE=1 GSE_TEST_PANEL_EDGE=1 GSE_TEST_CONTROLS=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_KAWASE=1 GSE_TEST_PANEL_EDGE=1 GSE_TEST_DOCK_CORNERS=1 GSE_TEST_COMBINED=1 GSE_TEST_MULTI=1 /usr/bin/python3 tests/headless.py
+GSE_APPEARANCE_BENCH_PROFILE=kawase GSE_APPEARANCE_BENCH_REPETITIONS=3 /usr/bin/python3 tests/appearance_benchmark.py
+```
+
+Evidências locais: `validation/single-controls-panel-edge-kawase-results.json`,
+`validation/single-multi-corners-combined-panel-edge-kawase-results.json` e
+`validation/kawase-compact-benchmark-1.7.0/`.
 
 ## Fast Gaussian progressivo — 2026-11-15
 

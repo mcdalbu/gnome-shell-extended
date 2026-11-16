@@ -12,8 +12,8 @@
     "50",
     "51"
   ],
-  "version": 23,
-  "version-name": "1.6.0",
+  "version": 27,
+  "version-name": "1.7.0",
   "settings-schema": "org.gnome.shell.extensions.gnome-shell-extended",
   "session-modes": [
     "user",

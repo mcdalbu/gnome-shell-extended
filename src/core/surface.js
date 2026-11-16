@@ -26,7 +26,7 @@ export class Surface {
         this.options = options;
         this.signals = new Signals();
         this.frames = new FrameSignals();
-        this.guard = new BlurRedrawGuard(Clutter, Meta);
+        this.guard = new BlurRedrawGuard(Clutter, Meta, settings);
         this.style = options.manageStyle === false ? null : new StyleLease(box);
         this._destroyed = false;
         this._generation = 0;
@@ -380,7 +380,7 @@ export class Surface {
         this.signals.clear();
         this.frames.clear();
         this._paintedViews.clear();
-        this.guard.end();
+        this.guard.destroy();
         this._stopDamage?.();
         this._stopDamage = null;
         this._clearCaptures();

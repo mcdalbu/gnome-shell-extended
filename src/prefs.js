@@ -76,7 +76,9 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         const blurOptions = group(blur, 'Desfoque', 'Aplica o método selecionado ao fundo das superfícies habilitadas.');
         toggle(blurOptions, 'blur-filter-enabled', 'Ativar blur');
         const blurControls = [
-            choice(blurOptions, 'blur-method', 'Método de blur', ['box', 'fast-gaussian'], ['Box blur', 'Fast Gaussian Blur']),
+            choice(blurOptions, 'blur-method', 'Método de blur', ['box', 'fast-gaussian', 'kawase'],
+                ['Box blur', 'Fast Gaussian Blur', 'Kawase (leve)'],
+                'Cada iteração do Kawase usa uma passada de quatro amostras. Prioriza menor custo do filtro, com aparência aproximada.'),
             number(blurOptions, 'blur-radius', 'Raio do desfoque (pixels lógicos)', 0, 100),
         ];
         const samplesControl = choice(blurOptions, 'blur-samples', 'Samples do Fast Gaussian',
@@ -84,6 +86,8 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             '13, 9 e 5 taps usam 7, 5 e 3 leituras de textura por direção.');
         const iterationsControl = number(blurOptions, 'blur-iterations', 'Iterações do Fast Gaussian', 1, 8, 1,
             'Passos progressivamente menores suavizam o desfoque. Cada iteração usa duas passadas na GPU; o padrão 4 usa oito passadas.');
+        const kawaseIterationsControl = number(blurOptions, 'blur-kawase-iterations', 'Iterações do Kawase', 1, 8, 1,
+            'Cada iteração usa uma passada de quatro amostras na GPU. Menos iterações reduzem o trabalho do filtro; o padrão é 3.');
         const glassOptions = group(blur, 'Vidro', 'A distorção pode ser usada sozinha ou combinada com o blur.');
         toggle(glassOptions, 'refraction-enabled', 'Ativar distorção do vidro');
         const strengthControl = number(glassOptions, 'refraction-strength', 'Intensidade da distorção', 0, 24, 0.5);
@@ -97,13 +101,17 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
                 control.sensitive = settings.get_boolean('blur-filter-enabled');
             samplesControl.sensitive = settings.get_boolean('blur-filter-enabled') && settings.get_string('blur-method') === 'fast-gaussian';
             iterationsControl.sensitive = samplesControl.sensitive;
+            kawaseIterationsControl.sensitive = settings.get_boolean('blur-filter-enabled') && settings.get_string('blur-method') === 'kawase';
             strengthControl.sensitive = settings.get_boolean('refraction-enabled');
         };
         for (const key of ['blur-filter-enabled', 'blur-method', 'refraction-enabled'])
             connections.push(settings.connect(`changed::${key}`, syncEffects));
         syncEffects();
         const performance = group(blur, 'Recursos',
-            'Box blur e Fast Gaussian Blur usam a GPU. Blur e distorção desligados liberam as capturas do fundo.');
+            'Kawase reduz o trabalho do filtro. O custo total também depende da captura e da composição do Shell. Blur e distorção desligados liberam as capturas do fundo.');
+        choice(performance, 'blur-render-area', 'Área de redesenho do blur', ['monitor', 'elements'],
+            ['Monitor (compatível)', 'Elementos (experimental)'],
+            'Atualiza os elementos e suas margens pelo redesenho nativo, podendo atrasar o blur em um frame. Usa o modo compatível quando indisponível.');
         number(performance, 'resize-debounce-ms', 'Debounce de eventos (ms)', 0, 1000, 10,
             'Aplicado na próxima ativação do módulo; animações acompanham os frames do Shell.');
         toggle(performance, 'debug-logging', 'Logs de depuração', 'Aplicado na próxima ativação da extensão.');
@@ -114,6 +122,11 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             'No Overview, o estilo personalizado é suspenso. Após o Overview fechar, o fundo passa da cor opaca do Overview à transparência configurada em 250 ms; textos e ícones permanecem opacos.');
         choice(panelOptions, 'panel-style', 'Cor do fundo', ['theme', 'light', 'dark'], ['Do tema', 'Clara', 'Escura']);
         toggle(panelOptions, 'panel-blur', 'Efeitos no fundo da barra', 'Usa os parâmetros da aba Blur. Suspenso no Overview e quando o fundo está opaco.');
+        const staticPanelControl = toggle(panelOptions, 'panel-static-blur', 'Blur estático do papel de parede',
+            'Usa somente o papel de parede e guarda o efeito em cache. Janelas atrás da barra não atualizam o blur.');
+        const syncStaticPanel = () => { staticPanelControl.sensitive = settings.get_boolean('panel-blur'); };
+        connections.push(settings.connect('changed::panel-blur', syncStaticPanel));
+        syncStaticPanel();
         toggle(panelOptions, 'panel-remove-gap', 'Remover lacuna entre a barra e janelas maximizadas', 'Posiciona o topo da janela 1 px sob a borda inferior da barra para fechar a junção, sem aumentar o painel.');
         toggle(panelOptions, 'panel-auto-opacity', 'Opacidade automática', 'Considera as janelas do workspace no monitor da barra.');
         number(panelOptions, 'panel-opacity', 'Opacidade normal', 0, 1, 0.05);

@@ -69,6 +69,11 @@ for (const key of settings.settings_schema.list_keys()) {
     settings.reset(key);
 }
 assert(controls.has('opacity-gtk-settings-sidebar'), 'Settings integration control');
+for (const enabled of [false, true]) {
+    settings.set_boolean('panel-blur', enabled);
+    assert(controls.get('panel-static-blur').sensitive === enabled, 'Static source follows panel effects');
+}
+settings.reset('panel-blur');
 for (const blur of [false, true]) {
     for (const distortion of [false, true]) {
         settings.set_boolean('blur-filter-enabled', blur);
@@ -80,10 +85,11 @@ for (const blur of [false, true]) {
         assert(controls.get('blur-filter-enabled').sensitive, 'Blur toggle always available');
     }
 }
-for (const enabled of [false,true]) for (const method of ['box','fast-gaussian']) {
+for (const enabled of [false,true]) for (const method of ['box','fast-gaussian','kawase']) {
     settings.set_boolean('blur-filter-enabled',enabled);settings.set_string('blur-method',method);
     assert(controls.get('blur-samples').sensitive===(enabled && method==='fast-gaussian'), 'Sample selector sensitivity');
     assert(controls.get('blur-iterations').sensitive===(enabled && method==='fast-gaussian'), 'Iteration control sensitivity');
+    assert(controls.get('blur-kawase-iterations').sensitive===(enabled && method==='kawase'), 'Kawase iteration control sensitivity');
 }
 for (const [index,value] of ['13','9','5'].entries()) {
     controls.get('blur-samples').selected=index;

@@ -41,6 +41,12 @@ if os.environ.get('GSE_TEST_PANEL_EDGE'):
     VARIANT += '-panel-edge'
 if os.environ.get('GSE_TEST_GAUSSIAN_ITERATIONS'):
     VARIANT += '-iterations'
+if os.environ.get('GSE_TEST_KAWASE'):
+    VARIANT += '-kawase'
+if os.environ.get('GSE_TEST_STATIC_PANEL'):
+    VARIANT += '-static-panel'
+if os.environ.get('GSE_TEST_REGIONAL_REDRAW'):
+    VARIANT += '-regional'
 
 
 
@@ -199,6 +205,8 @@ def test():
                  'globalThis.cfg=ext.getSettings();Main.overview.hide();')
         wait('ext._manager._slots.get("panel")?.instance && ext._manager._slots.get("blur")?.instance')
         evaluate("cfg.set_string('blur-backend','native')")
+        if os.environ.get('GSE_TEST_REGIONAL_REDRAW'):
+            evaluate("cfg.set_string('blur-render-area','elements')")
         time.sleep(0.8)
         check('modules-active', 'ext._manager._slots.size === 2')
         # Deliberately striped scene makes blur visible in the screenshots.
@@ -209,9 +217,18 @@ def test():
         if os.environ.get('GSE_TEST_PANEL_EDGE'):
             from panel_edge import run as test_panel_edge
             test_panel_edge(evaluate, wait, check, screenshot, results)
+        if os.environ.get('GSE_TEST_STATIC_PANEL'):
+            from static_panel import run as test_static_panel
+            test_static_panel(evaluate, wait, check, screenshot, results, shell.pid)
+        if os.environ.get('GSE_TEST_REGIONAL_REDRAW'):
+            from regional_redraw import run as test_regional_redraw
+            test_regional_redraw(evaluate, wait, check, screenshot, results, shell.pid)
         if os.environ.get('GSE_TEST_GAUSSIAN_ITERATIONS'):
             from gaussian_iterations import run as test_gaussian_iterations
             test_gaussian_iterations(evaluate, wait, check, screenshot, results)
+        if os.environ.get('GSE_TEST_KAWASE'):
+            from kawase import run as test_kawase
+            test_kawase(evaluate, wait, check, screenshot, results)
         if os.environ.get('GSE_TEST_SAMPLES'):
             from gaussian_samples import run as test_samples
             test_samples(evaluate, wait, check, screenshot, results)
@@ -241,7 +258,7 @@ def test():
         wait('ext._manager._slots.get("blur").instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor)?.surface?._state.captures.size > 0')
         check('calendar-text-opacity', 'Main.panel.statusArea.dateMenu.menu.box.opacity === 255')
         screenshot('calendar')
-        for method in ['box', 'fast-gaussian']:
+        for method in ['box', 'fast-gaussian', 'kawase']:
             evaluate(f"cfg.set_string('blur-method','{method}')")
             wait("ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor)?.surface?.backend && !ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface._loading")
             check('blur-method-' + method, f"ext._manager._slots.get('blur').instance.bindings.get(Main.panel.statusArea.dateMenu.menu.actor).surface._state.glassConfig.method==='{method}'")

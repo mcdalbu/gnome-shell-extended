@@ -41,7 +41,7 @@ export default class PanelModule {
                 this.settings.get_boolean('panel-blur') && this.settings.get_boolean('blur-enabled') &&
                 (this.appearance?.alpha ?? 1) < 1,
             options: {manageStyle: false, opacity: () => this.appearance?.alpha ?? 1,
-                fade: () => this.fade.value},
+                fade: () => this.fade.value, wallpaper: () => this.settings.get_boolean('panel-static-blur')},
         });
         this.interface = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
         this.signals.connect(this.interface, 'changed::color-scheme', () => this.sync(true));
@@ -278,10 +278,11 @@ export default class PanelModule {
             // style/layout/capture work in that case. Theme and child changes
             // still need a full pass, as do Overview transition boundaries.
             const signature = JSON.stringify([color, foreground, alpha,
-                this.settings.get_boolean('panel-blur'), this.settings.get_boolean('blur-enabled'),
+                this.settings.get_boolean('panel-blur'), this.settings.get_boolean('panel-static-blur'), this.settings.get_boolean('blur-enabled'),
                 this.settings.get_int('blur-radius'), this.settings.get_double('blur-brightness'),
                 this.settings.get_boolean('blur-filter-enabled'), this.settings.get_string('blur-method'), this.settings.get_string('blur-samples'),
-                this.settings.get_int('blur-iterations'),
+                this.settings.get_string('blur-render-area'),
+                this.settings.get_int('blur-iterations'), this.settings.get_int('blur-kawase-iterations'),
                 this.settings.get_boolean('refraction-enabled'), this.settings.get_double('refraction-strength'),
                 this.settings.get_boolean('frosted-glass-enabled'),
                 this.overviewActive, this.overviewOpening, this.overviewClosing,

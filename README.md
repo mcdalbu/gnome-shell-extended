@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **1.6.0**.
+preferências GTK4/Libadwaita. Versão estável **1.7.0**, baseada na **1.7.0-beta.3**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -14,7 +14,7 @@ Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md
 | Docks | Dash to Dock/Ubuntu Dock: blur, opacidade do fundo e fundo invisível no Overview, preservando os ícones |
 | Sombras | Grade, pastas, dock e Alt+Tab; intensidade, raio e deslocamentos |
 | Aplicativos | Integração opcional por CSS para barras laterais do Nautilus/Configurações e menus GTK4; opacidade nativa dos perfis do Ptyxis |
-| Preferências | Seis abas, 51 controles, limites de valores e restauração de defaults |
+| Preferências | Seis abas, 54 controles, limites de valores e restauração de defaults |
 
 Por padrão, blur do calendário/configurações rápidas e painel adaptativo ficam
 ativos. Outros elementos podem ser habilitados individualmente. As integrações
@@ -31,8 +31,84 @@ acessível ao Shell. O CSS opcional depende das classes/versões dos aplicativos
 precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
-cenários efetivamente testados. Não há alegação de ganho medido de CPU/GPU/RAM
-nem de compatibilidade certificada em todas as versões.
+cenários efetivamente testados. As medições são de cenas específicas; não há
+garantia de ganho percentual de CPU/GPU/RAM nem certificação em todas as versões.
+
+## Blur estático da barra e desenho por elemento — 1.7.0
+
+Em **Painel**, ative **Blur estático do papel de parede** para usar só o
+papel de parede como fonte da barra. A faixa da barra, com margem para o
+filtro, é processada e o resultado final dos shaders fica em cache. Textos
+e ícones continuam sendo desenhados normalmente. Janelas e animações atrás
+da barra não invalidam esse cache; mudanças no papel de parede, monitor,
+geometria ou parâmetros dos efeitos o atualizam. O cache é liberado no
+Overview, quando a barra fica opaca ou ao desativar seus efeitos.
+
+Em **Blur → Recursos → Área de redesenho do blur**, a opção
+**Elementos (experimental)** permite que os fundos dinâmicos usem o redesenho
+nativo por região, incluindo as margens necessárias ao filtro. Atualizações
+fora da captura não pedem um novo blur. Se uma margem do fundo ainda não foi
+redesenhada, o efeito usa a imagem preparada e agenda aquela região para o
+próximo frame; isso pode acrescentar um frame de atraso ao blur. A animação
+do aplicativo continua independente.
+
+As capturas dinâmicas já são recortadas aos elementos; o modo novo evita a
+exigência adicional de redesenhar o monitor inteiro. As áreas que o próprio
+desktop/aplicativo altera continuam sendo desenhadas. Em versões sem a API
+necessária, no Overview e em monitores rotacionados, usa o caminho compatível.
+O padrão continua **Monitor (compatível)**, com o estático desligado. O modo
+estático não precisa da proteção de redesenho, independentemente dessa escolha.
+
+Os testes verificaram cache, pixels, atualização do fundo e repouso. As
+medições curtas registradas em `VALIDATION.md` são observações de uma cena,
+sem garantia de economia percentual na sessão real.
+
+## Iterações do Kawase — 1.7.0-beta.2
+
+O controle **Iterações do Kawase** vai de **1 a 8**, com padrão **3**.
+Cada iteração aplica uma passada de quatro amostras. Menos iterações reduzem
+o trabalho do filtro e mudam a aproximação; os passos são normalizados para
+manter a intensidade próxima ao mesmo raio. A margem de captura acompanha
+o alcance do kernel. O controle só fica disponível com blur ligado e Kawase
+selecionado; o valor do Gaussian continua independente.
+
+A alteração é aplicada ao vivo em superfícies, painel, dock, janelas e papéis
+de parede opcionais. O padrão preserva os três passos da beta.1. O benchmark
+abaixo é da implementação de três passos; não foi repetido para cada quantidade.
+
+## Kawase com menor trabalho de filtro — 1.7.0-beta.1
+
+Em **Blur → Método de blur**, selecione **Kawase (leve)**. Por padrão, o método usa três
+passadas diagonais, cada uma com quatro leituras lineares, nas texturas
+reduzidas já utilizadas pelo renderer. São **12 leituras somadas por pixel
+filtrado**, contra 54 no Box e 56 no Gaussian padrão (13 taps, quatro pares).
+Essas contagens não incluem captura, redução e composição e não representam
+uma redução percentual garantida no uso total da GPU.
+
+O Kawase também usa uma captura com margem calculada para seu kernel e sem
+as dimensões mínimas exigidas pelos backends antigos. Isso reduz a área
+capturada e filtrada, principalmente em painéis e docks estreitos. As dimensões
+continuam estáveis durante movimento e fades; a refração entra no cálculo da
+margem quando habilitada. Não há captura por passada nem leitura para a CPU.
+
+Os três passos aproximam a intensidade do Box para o mesmo raio, com outro
+perfil de suavização. Samples e iterações do Gaussian não afetam Kawase.
+O método vale para todas as superfícies e para os papéis de parede opcionais;
+estes mantêm o cache de atores do compositor. As escolhas existentes são
+preservadas: a atualização não muda automaticamente o método selecionado.
+
+O custo de redesenhar a cena também importa. Se a GPU permanece ocupada com
+a área de trabalho parada, compare os períodos de repouso e procure a origem
+dos frames; diminuir o filtro sozinho não comprova a correção desse caso.
+O [ensaio da 1.7.0](BENCHMARK-KAWASE.md) confirmou menos pixels e passadas,
+mas **não demonstrou menor ocupação total de GPU para Kawase**; as frequências
+variaram e o consumo alto em repouso da sessão real não foi reproduzido.
+O perfil reproduzível da versão atual é:
+
+```sh
+make zip
+GSE_APPEARANCE_BENCH_PROFILE=kawase /usr/bin/python3 tests/appearance_benchmark.py
+```
 
 ## Gaussian progressivo — 1.6.0
 
@@ -54,7 +130,7 @@ conserva suas três iterações próprias e ignora esse controle.
 
 A aba **Blur** tem dois controles independentes:
 
-- **Ativar blur**: permite escolher **Box blur** ou **Fast Gaussian Blur** e
+- **Ativar blur**: permite escolher **Box blur**, **Fast Gaussian Blur** ou **Kawase (leve)** e
   ajustar o raio. Ambos filtram o fundo na GPU; o método e o raio ficam
   indisponíveis quando o blur está desligado, sem perder seus valores.
 - **Ativar distorção do vidro**: habilita a lente nas bordas arredondadas, com
@@ -75,8 +151,8 @@ O Box blur usa três iterações horizontal/vertical. O Fast Gaussian Blur usa
 kernels de **5, 9 ou 13 taps**, escolhidos em **Samples do Fast Gaussian**.
 Eles usam, respectivamente, **3, 5 ou 7 leituras lineares de textura por direção**.
 13 taps é o padrão; menos taps reduz leituras em cada passada,
-com outra aproximação do desfoque. Samples e iterações só ficam disponíveis com blur ligado
-e Fast Gaussian selecionado. Os kernels foram adaptados de Experience-Monks sob MIT. Nas superfícies, os filtros usam uma
+com outra aproximação do desfoque. Samples e iterações do Gaussian só ficam disponíveis com blur ligado
+e Fast Gaussian selecionado; Kawase tem seu próprio controle de iterações. Os kernels foram adaptados de Experience-Monks sob MIT. Nas superfícies, os filtros usam uma
 pirâmide de redução de 2× a 8×, conforme o raio. No Overview/bloqueio, apenas
 o papel de parede é processado, com o cache de atores do compositor.
 A aparência de um mesmo raio nominal varia entre os métodos.
@@ -328,8 +404,10 @@ superfícies; não há timer contínuo chamando `queue_redraw()`.
 As capturas são separadas por view/monitor e ajustadas à escala física. O
 recorte usa uma região em cache e acompanha os cantos do tema. Eventos de
 janelas são compartilhados e só invalidam superfícies próximas do dano.
-Redraw completo é habilitado temporariamente durante um frame existente que
-precisa de amostragem BACKGROUND; ele não inicia um loop de frames.
+No modo compatível, redraw completo é habilitado temporariamente durante um
+frame existente que precisa de amostragem BACKGROUND; ele não inicia um loop
+de frames. O modo experimental Elementos usa pedidos regionais e cache durante
+a atualização da margem; a barra estática dispensa essa proteção.
 
 No Fedora 45/Mutter 51, use a [biblioteca opcional `6.local` ou mais recente](https://github.com/mcdalbu/gnome-rounded-blur-rpm/releases/tag/v1.0.2-6.local.fc45)
 para limitar capturas sem o loop de redraw em repouso observado com vários

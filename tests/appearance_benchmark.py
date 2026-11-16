@@ -21,16 +21,17 @@ from benchmark import read_process, summarize
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = os.environ.get('GSE_APPEARANCE_BENCH_PROFILE', 'appearance')
-assert PROFILE in ['appearance', 'iterations']
+assert PROFILE in ['appearance', 'iterations', 'kawase']
 METADATA = json.loads((ROOT/'src/metadata.json').read_text())
 OUT = Path(os.environ.get('GSE_APPEARANCE_BENCH_OUTPUT', str(ROOT/'validation'/
-    (f"gaussian-iterations-benchmark-{METADATA['version-name']}" if PROFILE == 'iterations' else 'appearance-benchmark-1.5.1'))))
+    (f"gaussian-iterations-benchmark-{METADATA['version-name']}" if PROFILE == 'iterations' else
+     f"kawase-benchmark-{METADATA['version-name']}" if PROFILE == 'kawase' else 'appearance-benchmark-1.5.1'))))
 PACKAGE = Path(os.environ.get('GSE_APPEARANCE_BENCH_PACKAGE', str(ROOT/'dist'/
-    (f"gnome-shell-extended@mcda_v{METADATA['version']}.zip" if PROFILE == 'iterations' else 'gnome-shell-extended@mcda_v21.zip'))))
-REPETITIONS = int(os.environ.get('GSE_APPEARANCE_BENCH_REPETITIONS', '5' if PROFILE == 'iterations' else '3'))
-ACTIVE_SECONDS = float(os.environ.get('GSE_APPEARANCE_BENCH_ACTIVE_SECONDS', '12' if PROFILE == 'iterations' else '8'))
+    (f"gnome-shell-extended@mcda_v{METADATA['version']}.zip" if PROFILE != 'appearance' else 'gnome-shell-extended@mcda_v21.zip'))))
+REPETITIONS = int(os.environ.get('GSE_APPEARANCE_BENCH_REPETITIONS', '5' if PROFILE != 'appearance' else '3'))
+ACTIVE_SECONDS = float(os.environ.get('GSE_APPEARANCE_BENCH_ACTIVE_SECONDS', '12' if PROFILE != 'appearance' else '8'))
 IDLE_SECONDS = float(os.environ.get('GSE_APPEARANCE_BENCH_IDLE_SECONDS', '2'))
-WARMUP_SECONDS = 4 if PROFILE == 'iterations' else 2
+WARMUP_SECONDS = 4 if PROFILE != 'appearance' else 2
 UUID = 'gnome-shell-extended@mcda'
 CASES = [dict(name='tint', blur=False, lens=False, frost=False, method='box', samples=13),
          dict(name='frost', blur=False, lens=False, frost=True, method='box', samples=13),
@@ -44,6 +45,10 @@ if PROFILE == 'iterations':
     CASES = [dict(name='box',blur=True,lens=False,frost=False,method='box',samples=13,iterations=3),
              dict(name='gaussian-3-iterations',blur=True,lens=False,frost=False,method='fast-gaussian',samples=13,iterations=3),
              dict(name='gaussian-4-iterations',blur=True,lens=False,frost=False,method='fast-gaussian',samples=13,iterations=4)]
+if PROFILE == 'kawase':
+    CASES = [dict(name=name,blur=blur,lens=False,frost=False,method=method,samples=13,iterations=3 if method=='kawase' else 4)
+             for name,blur,method in [('tint',False,'box'),('box',True,'box'),
+                 ('gaussian-4-iterations',True,'fast-gaussian'),('kawase',True,'kawase')]]
 if os.environ.get('GSE_APPEARANCE_BENCH_ONLY'):
     CASES = [c for c in CASES if c['name'] in os.environ['GSE_APPEARANCE_BENCH_ONLY'].split(',')]
     assert CASES, 'Unknown benchmark case'
@@ -74,7 +79,7 @@ def child(case, repetition):
     cfg.set_string('blur-method', case['method'])
     cfg.set_string('blur-samples', str(case['samples']))
     if 'iterations' in case:
-        cfg.set_int('blur-iterations',case['iterations'])
+        cfg.set_int('blur-kawase-iterations' if case['method']=='kawase' else 'blur-iterations',case['iterations'])
     cfg.set_int('blur-radius', 24)
     cfg.set_double('refraction-strength', 6)
     cfg.set_double('blur-brightness', .8)
@@ -122,7 +127,7 @@ def child(case, repetition):
             evaluate('globalThis.benchFrames=0')
             def sample():
                 data = read_process(shell.pid)
-                if PROFILE == 'iterations':
+                if PROFILE != 'appearance':
                     # Observe clocks, never change the host's power settings.
                     data['gpu_clock_mhz'] = {}
                     for key in ['cur_freq','act_freq']:
@@ -159,7 +164,7 @@ def child(case, repetition):
             verification = evaluate('''benchVerifyFilters.map(f=>({
                 totalDraws:f._benchDraws,downsampleDraws:f.levels.length,
                 filterPasses:f._benchDraws-f.levels.length}))''')
-            expected = 6 if case['method']=='box' else 2*case['iterations']
+            expected = case['iterations'] if case['method']=='kawase' else 6 if case['method']=='box' else 2*case['iterations']
             assert len(verification)==2 and all(v['filterPasses']==expected for v in verification), verification
             return verification
 
@@ -209,7 +214,7 @@ def child(case, repetition):
                     if 'iterations' in case:
                         assert s['config']['iterations']==case['iterations']
             evaluate('benchTimeline.stop()')
-            verification = verify_passes() if PROFILE == 'iterations' else None
+            verification = verify_passes() if PROFILE != 'appearance' and case['blur'] else None
             time.sleep(1)
             post_idle = measure(IDLE_SECONDS)
             result = dict(case=case,repetition=repetition,info=resolved,passVerification=verification,

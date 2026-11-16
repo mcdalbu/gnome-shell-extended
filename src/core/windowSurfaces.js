@@ -211,7 +211,7 @@ export class WindowSurfaces {
 
     _track(actor, window, menu, normal) {
         const state = {actor, window, menu, normal, signals: new Signals(),
-            guard: new BlurRedrawGuard(Clutter, Meta), blur: null, captures: new Map()};
+            guard: new BlurRedrawGuard(Clutter, Meta, this._settings), blur: null, captures: new Map()};
         this._windows.set(actor, state);
         const refresh = () => {
             this._dirty.add(state);
@@ -565,6 +565,7 @@ export class WindowSurfaces {
         this._dirty.delete(state);
         this._damage.delete(state);
         this._hide(state);
+        state.guard.destroy();
         state.signals.clear();
         state.reveal?.run_dispose();
         state.reveal = null;

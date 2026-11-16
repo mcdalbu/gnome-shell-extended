@@ -22,7 +22,7 @@ def run(evaluate, wait, check, screenshot, results):
         globalThis.controlsSurfaces=()=>[controlsMenuSurface(),controlsModule('panel').binding.surface,
             controlsModule('docks')?.records.get(controlsDock)?.binding.surface];''')
     wait('controlsModule("docks")?.records.get(controlsDock)?.binding.surface')
-    for method in ['box', 'fast-gaussian']:
+    for method in ['box', 'fast-gaussian', 'kawase']:
         evaluate(f"cfg.set_string('blur-method','{method}')")
         for blur, distortion in [(True, True), (False, True), (True, False), (False, False)]:
             evaluate(f"cfg.set_boolean('blur-filter-enabled',{str(blur).lower()});cfg.set_boolean('refraction-enabled',{str(distortion).lower()})")

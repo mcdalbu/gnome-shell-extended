@@ -46,8 +46,9 @@ def build():
         shutil.rmtree(target)
     shutil.copytree(ROOT / 'src', target)
     shutil.copytree(ROOT / 'schemas', target / 'schemas')
-    for name in ['LICENSE', 'README.md', 'THIRD_PARTY.md', 'VALIDATION.md', 'CHANGELOG.md']:
+    for name in ['LICENSE', 'README.md', 'THIRD_PARTY.md', 'VALIDATION.md', 'CHANGELOG.md', 'BENCHMARK-KAWASE.md']:
         shutil.copy2(ROOT / name, target / name)
+    shutil.copytree(ROOT / 'benchmarks/kawase-1.7.0', target / 'benchmarks/kawase-1.7.0')
     subprocess.run(['glib-compile-schemas', '--strict', str(target / 'schemas')], check=True)
     print(target)
 

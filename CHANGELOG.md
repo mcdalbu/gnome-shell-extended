@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.7.0 — 2026-11-16
+
+- Promove a beta.3 a estável, com o mesmo código de execução, exceto a identificação em `metadata.json`.
+- Inclui Kawase com 1–8 iterações independentes, padrão 3, e capturas dimensionadas para o alcance do filtro.
+- Inclui blur estático do papel de parede na barra superior, com cache da saída dos shaders.
+- Inclui redesenho por **Elementos (experimental)** como opção para os fundos dinâmicos. O padrão continua **Monitor (compatível)**; o modo regional pode acrescentar um frame de atraso e mantém fallback automático.
+- Publica ZIP instalável, checksum e evidências de validação. As medições de GPU são específicas das cenas descritas, sem promessa de redução percentual para todos os desktops.
+
+## 1.7.0-beta.3 — 2026-11-16
+
+- Adiciona **Blur estático do papel de parede** na aba Painel: filtra só uma faixa do wallpaper e guarda a saída dos shaders em cache, sem capturar janelas ou acompanhar seus danos.
+- Atualiza a cópia do papel de parede pelo gerenciador do Shell, incluindo mudanças de imagem/tema e monitor, e preserva as regras de opacidade e Overview da barra.
+- Adiciona **Área de redesenho do blur → Elementos (experimental)**: usa a fila de redesenho nativa por região, com a margem do filtro; quando necessário, reaproveita o resultado preparado e atualiza a região no próximo frame.
+- Mantém pintura, apresentação e histórico de danos do compositor. O modo pode acrescentar um frame de atraso ao blur; APIs indisponíveis, Overview e monitores rotacionados usam o modo compatível.
+- Normaliza a cobertura premultiplicada no wallpaper opaco da barra, evitando que a borda dos buffers revele janelas atrás dela. Adiciona testes de cache, imagem real, regiões externas, repouso e escalas mistas.
+
+## 1.7.0-beta.2 — 2026-11-16
+
+- Adiciona **Iterações do Kawase**, de 1 a 8, com padrão 3 e independente das iterações do Gaussian.
+- Cada iteração aplica uma passada de quatro amostras; normaliza os offsets para manter a intensidade aproximada e ajusta a margem de captura ao suporte do kernel.
+- Atualiza ao vivo superfícies, painel, dock, janelas e a cadeia em cache do papel de parede; mantém os dois render targets reutilizados.
+- Acrescenta testes de passadas pares/ímpares, pixels, controles e atualização ao vivo. O benchmark anterior continua sendo uma medição de três iterações, sem alegação de economia de GPU para outras quantidades.
+
+## 1.7.0-beta.1 — 2026-11-16
+
+- Adiciona **Kawase (leve)**: três passadas diagonais de quatro amostras em resolução reduzida, com alvos reutilizados e intensidade aproximada à do Box.
+- Calcula a margem de captura do Kawase a partir do suporte do kernel e da refração; dispensa o tamanho mínimo dos backends antigos, reduzindo a área processada em superfícies estreitas.
+- Aplica o método em superfícies, painel, docks, janelas e papéis de parede opcionais; preserva os métodos e as escolhas existentes.
+- Inclui testes de pixels, contagem real de passadas, controles, cantos, refração e escalas mistas, além de um perfil de benchmark com transparência como referência.
+- A redução do trabalho do filtro não equivale a uma economia garantida de GPU no desktop nem resolve, por si só, redesenhos contínuos de outras fontes.
+
 ## 1.6.0 — 2026-11-15
 
 - Fast Gaussian Blur com passadas progressivas, inspirado em amilajack/gaussian-blur.

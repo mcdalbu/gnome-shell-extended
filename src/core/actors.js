@@ -64,7 +64,7 @@ export class SurfaceBinding {
         const alpha = this.options?.opacity?.() ?? this.settings.get_double('surface-opacity');
         const enabled = this.options?.blur?.() !== false && alpha < 1;
         const appearance = readAppearance(this.settings);
-        const kind = enabled && appearance.capture ? 'effects' : enabled && appearance.frosted ? 'glass' : 'tint';
+        const kind = enabled && appearance.capture ? (this.options?.wallpaper?.() ? 'wallpaper' : 'effects') : enabled && appearance.frosted ? 'glass' : 'tint';
         if (kind !== this.surfaceKind) {
             this.token++;
             this.loading = false;
@@ -80,12 +80,13 @@ export class SurfaceBinding {
             return;
         const token = ++this.token;
         this.loading = true;
-        import(kind !== 'tint' ? './surface.js' : './tintSurface.js').then(exports => {
+        const source = kind === 'wallpaper' ? './wallpaperSurface.js' : kind !== 'tint' ? './surface.js' : './tintSurface.js';
+        import(source).then(exports => {
             if (this.closed || token !== this.token)
                 return;
             this.loading = false;
             if (this.enabled() && this.box.mapped && this.anchor.get_parent())
-                this.surface = new (kind !== 'tint' ? exports.Surface : exports.TintSurface)(
+                this.surface = new (exports.WallpaperSurface ?? exports.Surface ?? exports.TintSurface)(
                     this.box, this.anchor, this.settings, this.logger, this.options);
         }).catch(error => {
             if (!this.closed && token === this.token) {

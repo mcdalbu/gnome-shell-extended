@@ -37,22 +37,34 @@
       <description>Enable the selected blur filter independently of glass distortion.</description>
     </key>
     <key name="blur-method" type="s">
-      <choices><choice value="box"/><choice value="fast-gaussian"/></choices>
+      <choices><choice value="box"/><choice value="fast-gaussian"/><choice value="kawase"/></choices>
       <default>'box'</default>
       <summary>Blur method</summary>
-      <description>GPU separable Box blur or Fast Gaussian Blur.</description>
+      <description>Box blur, Fast Gaussian Blur, or lightweight Kawase with diagonal four-sample passes. Kawase approximates the blur with a different kernel.</description>
+    </key>
+    <key name="blur-render-area" type="s">
+      <choices><choice value="monitor"/><choice value="elements"/></choices>
+      <default>'monitor'</default>
+      <summary>Dynamic blur redraw area</summary>
+      <description>Compatible monitor redraws, or experimental native element redraws including filter margins. An incomplete source uses the cached image while requesting its region for the next frame, which may add one frame of blur latency. Unsupported APIs fall back to compatible redraws. Static wallpaper panels do not need this guard.</description>
     </key>
     <key name="blur-samples" type="s">
       <choices><choice value="5"/><choice value="9"/><choice value="13"/></choices>
       <default>'13'</default>
       <summary>Fast Gaussian sample count</summary>
-      <description>5, 9 or 13 taps, using 3, 5 or 7 linear texture reads per direction. Box blur ignores this setting.</description>
+      <description>5, 9 or 13 taps, using 3, 5 or 7 linear texture reads per direction. Box and Kawase ignore this setting.</description>
     </key>
     <key name="blur-iterations" type="i">
       <range min="1" max="8"/>
       <default>4</default>
       <summary>Progressive Gaussian iterations</summary>
-      <description>Each iteration adds one horizontal and one vertical pass with decreasing steps. Four iterations use eight passes. Radius is normalized across iteration counts. Box blur ignores this setting.</description>
+      <description>Each iteration adds one horizontal and one vertical pass with decreasing steps. Four iterations use eight passes. Radius is normalized across iteration counts. Box and Kawase ignore this setting.</description>
+    </key>
+    <key name="blur-kawase-iterations" type="i">
+      <range min="1" max="8"/>
+      <default>3</default>
+      <summary>Kawase iterations</summary>
+      <description>Each iteration adds one diagonal four-sample GPU pass. The default three preserves the first beta. Steps are normalized to keep the blur intensity close across iteration counts. Independent of Gaussian iterations.</description>
     </key>
     <key name="refraction-enabled" type="b">
       <default>false</default>
@@ -268,6 +280,11 @@
       <default>true</default>
       <summary>Blur behind the top panel</summary>
       <description>Blur translucent panel backgrounds outside Overview. Opaque and hidden panels release their captures.</description>
+    </key>
+    <key name="panel-static-blur" type="b">
+      <default>false</default>
+      <summary>Static wallpaper blur for the top panel</summary>
+      <description>Use only the wallpaper behind the panel and cache the filtered result. Windows are not captured. Wallpaper, monitor, geometry and effect changes update the cache.</description>
     </key>
     <key name="panel-auto-opacity" type="b">
       <default>true</default>

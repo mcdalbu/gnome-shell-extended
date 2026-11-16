@@ -18,6 +18,10 @@ for (const key of schema.list_keys()) {
 }
 assert(!settings.get_boolean('panel-remove-gap'), 'Panel gap correction defaults to disabled');
 assert(settings.get_boolean('blur-enabled'), 'Shell blur defaults to enabled');
+assert(!settings.get_boolean('panel-static-blur'), 'Static wallpaper source is opt-in');
+assert(settings.get_string('blur-render-area') === 'monitor', 'Compatible redraw remains the default');
+assert(schema.get_key('blur-render-area').range_check(new GLib.Variant('s','elements')), 'Element redraw supported');
+assert(!schema.get_key('blur-render-area').range_check(new GLib.Variant('s','unknown')), 'Reject unknown redraw area');
 assert(schema.get_key('blur-mode').range_check(new GLib.Variant('s','combined')), 'Combined choice');
 assert(settings.get_string('blur-glass-method') === 'box', 'Box blur default');
 assert(schema.get_key('blur-glass-method').range_check(new GLib.Variant('s','fast-gaussian')), 'Fast Gaussian choice');
@@ -42,6 +46,19 @@ assert(settings.get_int('blur-iterations')===4, 'Default Gaussian uses eight dir
 assert(!schema.get_key('blur-iterations').range_check(new GLib.Variant('i',0)), 'Reject zero iterations');
 assert(!schema.get_key('blur-iterations').range_check(new GLib.Variant('i',9)), 'Bound Gaussian GPU passes');
 assert(readAppearance(settings).iterations===4, 'Shared Gaussian iteration count');
+assert(settings.set_string('blur-method', 'kawase'), 'Kawase method supported');
+migrateAppearance(settings);
+assert(readAppearance(settings).method === 'kawase', 'Explicit Kawase survives legacy migration');
+settings.set_int('blur-iterations', 8);
+settings.set_string('blur-samples', '5');
+assert(readAppearance(settings).method === 'kawase', 'Gaussian quality does not select the method');
+assert(readAppearance(settings).iterations === 3, 'Kawase defaults to three independently of Gaussian');
+assert(!schema.get_key('blur-kawase-iterations').range_check(new GLib.Variant('i',0)), 'Reject zero Kawase iterations');
+assert(!schema.get_key('blur-kawase-iterations').range_check(new GLib.Variant('i',9)), 'Bound Kawase GPU passes');
+settings.set_int('blur-kawase-iterations', 1);
+assert(readAppearance(settings).iterations === 1, 'Kawase has its own iteration count');
+settings.set_string('blur-method', 'fast-gaussian');
+assert(readAppearance(settings).iterations === 8, 'Gaussian iteration count preserved');
 // Verify upgrades with a fresh settings state for each old appearance.
 const reset = () => { for (const key of schema.list_keys()) settings.reset(key); };
 for (const [mode, blur, distortion, frost] of [
