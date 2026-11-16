@@ -4,6 +4,7 @@ import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
 import {gaussianKernels, gaussianSource, gaussianSteps} from './gaussianKernels.js';
 import {kawaseSource, kawaseSteps} from './kawase.js';
+import {blurReduction} from './blurPerformance.js';
 
 const box = `
     vec2 uv = cogl_tex_coord_in[0].xy;
@@ -46,10 +47,9 @@ function target(context, width, height) {
 // GPU-only filters. Build a 2x pyramid so a wide blur never skips
 // entire source stripes. Geometry uses the final radius, stable during fades.
 export class GlassBlur {
-    constructor(context, width, height, maximumRadius) {
+    constructor(context, width, height, maximumRadius, resolution = 'auto') {
         this.levels = [];
-        const reduction = Math.min(8, Math.max(2,
-            2 ** Math.floor(Math.log2(Math.max(1, maximumRadius / 6)))));
+        const reduction = blurReduction(maximumRadius, resolution);
         for (let factor = 1; factor < reduction; factor *= 2) {
             width = Math.max(1, Math.ceil(width / 2));
             height = Math.max(1, Math.ceil(height / 2));

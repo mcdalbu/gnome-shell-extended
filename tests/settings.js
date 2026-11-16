@@ -2,6 +2,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {migrateAppearance, readAppearance} from '../src/core/appearance.js';
+import {CaptureRate, blurReduction, capturePadding} from '../src/core/render/blurPerformance.js';
 
 function assert(condition, message) {
     if (!condition)
@@ -22,6 +23,47 @@ assert(!settings.get_boolean('panel-static-blur'), 'Static wallpaper source is o
 assert(settings.get_string('blur-render-area') === 'monitor', 'Compatible redraw remains the default');
 assert(schema.get_key('blur-render-area').range_check(new GLib.Variant('s','elements')), 'Element redraw supported');
 assert(!schema.get_key('blur-render-area').range_check(new GLib.Variant('s','unknown')), 'Reject unknown redraw area');
+assert(readAppearance(settings).resolution === 'auto' && readAppearance(settings).refreshPercent === 100,
+    'Performance defaults preserve resolution and refresh rate');
+for (const percent of [100, 50, 25]) {
+    assert(settings.set_string('blur-refresh-rate', String(percent)), 'Supported refresh fraction');
+    assert(readAppearance(settings).refreshPercent === percent, 'Refresh fraction propagated');
+    for (const hz of [60, 120, 144]) {
+        const budget = new CaptureRate();
+        let count = 0;
+        for (let frame = 0; frame < hz * 8; frame++) {
+            const now = frame * 1e6 / hz;
+            if (budget.due(now, hz, percent)) {
+                budget.commit(now, hz, percent);
+                count++;
+            }
+        }
+        assert(Math.abs(count - hz * 8 * percent / 100) <= 1, 'Monitor-relative capture cadence');
+        assert(budget.due(60e6, hz, percent), 'A change after idle refreshes immediately');
+        budget.commit(60e6, hz, percent);
+        assert(percent === 100 || !budget.due(60e6 + 1000, hz, percent), 'No catch-up burst after idle');
+        assert(budget.due(60e6 + 1000, hz * 2, percent), 'New monitor refresh is immediate');
+    }
+}
+assert(!schema.get_key('blur-refresh-rate').range_check(new GLib.Variant('s','75')), 'Only full, half and quarter rates');
+settings.reset('blur-refresh-rate');
+for (const percent of [50, 25]) {
+    const first = new CaptureRate(), second = new CaptureRate();
+    first.commit(0, 60, percent);
+    second.commit(10000, 60, percent);
+    assert(first.next === second.next, 'Staggered surfaces share a refresh deadline and cannot wake each other forever');
+}
+for (const radius of [1, 24, 100, 200]) {
+    assert(blurReduction(radius, 'half') === 2 * blurReduction(radius), 'Half linear resolution');
+    assert(blurReduction(radius, 'quarter') === 4 * blurReduction(radius), 'Quarter linear resolution');
+}
+for (const method of ['box', 'fast-gaussian', 'kawase']) {
+    const config = {blurRadius:24, strength:0, method, iterations:8, resolution:'quarter'};
+    assert(capturePadding({...config, blurRadius:1, strength:24}, 1.5) > 36,
+        'Capture covers the physical lens displacement and reconstruction');
+    assert(capturePadding({...config, strength:12}, 1.5) === capturePadding(config, 1.5),
+        'An inward lens within the kernel does not shift its sampling grid');
+}
 assert(schema.get_key('blur-mode').range_check(new GLib.Variant('s','combined')), 'Combined choice');
 assert(settings.get_string('blur-glass-method') === 'box', 'Box blur default');
 assert(schema.get_key('blur-glass-method').range_check(new GLib.Variant('s','fast-gaussian')), 'Fast Gaussian choice');

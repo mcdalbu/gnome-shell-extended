@@ -2,7 +2,9 @@
 import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
+import GLib from 'gi://GLib';
 import {GlassBlur} from './glassBlur.js';
+import {CaptureRate} from './blurPerformance.js';
 
 // Rounded contour lens inspired by Pedro Ruedas's LiquidGlass.fx (GPL-3.0).
 // https://github.com/PedroRuedas/Windows-Liquid-glass/blob/main/src/LiquidGlass/Effects/Shaders/LiquidGlass.fx
@@ -27,8 +29,8 @@ vec2 glassOffset(vec2 p, vec2 size, float radius, float strength) {
 }`;
 
 // In-place BACKGROUND effect: copy only already painted pixels into a GPU
-// texture before drawing. Never use a CPU readback, a previous frame, or an
-// offscreen parent that would capture the surface's own foreground.
+// texture before drawing. A rate-limited or incomplete native source reuses
+// its prepared texture. Never capture an offscreen parent or CPU pixels.
 let backdropSnippet;
 let wallpaperSnippet;
 
@@ -45,6 +47,7 @@ export const RefractionEffect = GObject.registerClass({
         this.radius = 6;
         this.brightness = 1;
         this._buffers = new Map();
+        this.statistics = {captures: 0, rateReuses: 0, regionalReuses: 0, trailing: 0};
     }
 
     configure(config) {
@@ -61,7 +64,69 @@ export const RefractionEffect = GObject.registerClass({
     }
 
     release() {
+        for (const buffer of this._buffers.values())
+            this._cancelRefresh(buffer);
         this._buffers.clear();
+        this.regionalRefresh = null;
+    }
+
+    forceNextRefresh(view) {
+        const buffer = this._buffers.get('view');
+        if (buffer?.view === view) {
+            this._cancelRefresh(buffer);
+            buffer.forceRefresh = true;
+        }
+    }
+
+    _cancelRefresh(buffer) {
+        if (buffer.refreshSource)
+            GLib.Source.remove(buffer.refreshSource);
+        buffer.refreshSource = 0;
+    }
+
+    _parameters(scale) {
+        const config = this.glassConfig;
+        const radius = this.combined ? this.radius * (config?.blurRatio ?? 0) * scale : 0;
+        return `${radius}:${config?.method}:${config?.samples}:${config?.iterations}:${config?.resolution}`;
+    }
+
+    // Used by regional damage handling too, so a deliberately skipped refresh
+    // does not request a source-margin redraw at the full monitor frequency.
+    deferForRate(view) {
+        const percent = this.glassConfig?.refreshPercent ?? 100;
+        if (percent === 100)
+            return false;
+        const buffer = this._buffers.get('view');
+        if (!buffer?.prepared || buffer.view !== view || buffer.forceRefresh)
+            return false;
+        const refresh = view.get_refresh_rate?.() ?? 0;
+        if (!(refresh > 0) || buffer.parameters !== this._parameters(view.get_scale()))
+            return false;
+        const now = GLib.get_monotonic_time();
+        if (buffer.rate.due(now, refresh, percent))
+            return false;
+        // Moving/resizing captures must sample their new source immediately.
+        const actor = this.get_actor();
+        const [x, y] = actor.get_transformed_position();
+        const [w, h] = actor.get_transformed_size();
+        if (buffer.transform !== `${x}:${y}:${w}:${h}`)
+            return false;
+        if (!buffer.refreshSource) {
+            buffer.refreshSource = GLib.timeout_add(GLib.PRIORITY_DEFAULT,
+                Math.max(1, Math.ceil((buffer.rate.next - now) / 1000)), () => {
+                    buffer.refreshSource = 0;
+                    // One final refresh after the source stops changing. This
+                    // refresh is forced and cannot schedule another timeout.
+                    buffer.forceRefresh = true;
+                    this.statistics.trailing++;
+                    if (actor.mapped) {
+                        this.regionalRefresh?.();
+                        actor.queue_redraw();
+                    }
+                    return GLib.SOURCE_REMOVE;
+                });
+        }
+        return true;
     }
 
     vfunc_paint(_node, context, _flags) {
@@ -89,13 +154,18 @@ export const RefractionEffect = GObject.registerClass({
         try {
             const key = view ? 'view' : 'capture';
             let buffer = this._buffers.get(key);
-            const reuse = !!(view && this.captureDeferred);
+            const transform = `${x}:${y}:${w}:${h}`;
+            const parameters = this._parameters(scale);
+            const prepared = buffer?.prepared && buffer.width === width && buffer.height === height && buffer.view === view;
+            const valid = prepared && buffer.transform === transform && buffer.parameters === parameters;
             // A partial source region must not capture this surface's old
             // pixels. Reuse a prepared image until the requested native region
             // is refreshed. New/resized surfaces keep their native tint for
             // that one frame rather than showing an uninitialized texture.
-            if (reuse && (!buffer || buffer.width !== width || buffer.height !== height))
+            if (view && this.captureDeferred && !prepared)
                 return;
+            const limited = valid && view && this.deferForRate(view);
+            const reuse = !!(view && prepared && (this.captureDeferred || limited));
             const cogl = framebuffer.get_context();
             const feature = Cogl.FeatureID.BLIT_FRAMEBUFFER ?? Cogl.FeatureID.OGL_FEATURE_ID_BLIT_FRAMEBUFFER;
             if (feature !== undefined) {
@@ -107,6 +177,8 @@ export const RefractionEffect = GObject.registerClass({
             // Keep at most one real-view buffer and one screenshot buffer per
             // effect; resizing replaces storage rather than retaining old FBOs.
             if (!buffer || buffer.width !== width || buffer.height !== height) {
+                if (buffer)
+                    this._cancelRefresh(buffer);
                 const texture = Cogl.Texture2D.new_with_size(cogl, width, height);
                 const target = Cogl.Offscreen.new_with_texture(texture);
                 target.allocate();
@@ -138,7 +210,7 @@ export const RefractionEffect = GObject.registerClass({
                     `);
                 }
                 pipeline.add_snippet(backdropSnippet);
-                buffer = {texture, target, pipeline, width, height};
+                buffer = {texture, target, pipeline, width, height, rate: new CaptureRate()};
                 this._buffers.set(key, buffer);
             }
             // Flush the scene before the blit. Blit ignores source clipping;
@@ -151,9 +223,11 @@ export const RefractionEffect = GObject.registerClass({
                     throw new Error('Framebuffer blit failed');
                 if (blurRadius > 0) {
                     const maximum = (this.glassConfig?.blurRadius ?? 0) * scale;
-                    if (!buffer.filter || buffer.filterMaximum !== maximum) {
-                        buffer.filter = new GlassBlur(cogl, width, height, maximum);
+                    const resolution = this.glassConfig?.resolution ?? 'auto';
+                    if (!buffer.filter || buffer.filterMaximum !== maximum || buffer.resolution !== resolution) {
+                        buffer.filter = new GlassBlur(cogl, width, height, maximum, resolution);
                         buffer.filterMaximum = maximum;
+                        buffer.resolution = resolution;
                     }
                     pipeline.set_layer_texture(0, buffer.filter.apply(buffer.texture, blurRadius,
                         this.glassConfig.method, this.glassConfig.samples, this.glassConfig.iterations));
@@ -164,6 +238,19 @@ export const RefractionEffect = GObject.registerClass({
                         buffer.filterMaximum = 0;
                     }
                 }
+                this._cancelRefresh(buffer);
+                buffer.forceRefresh = false;
+                buffer.prepared = true;
+                buffer.parameters = parameters;
+                buffer.transform = transform;
+                buffer.view = view;
+                if (view) {
+                    buffer.rate.commit(GLib.get_monotonic_time(), view.get_refresh_rate?.() || 60,
+                        this.glassConfig?.refreshPercent ?? 100);
+                    this.statistics.captures++;
+                }
+            } else {
+                this.statistics[limited ? 'rateReuses' : 'regionalReuses']++;
             }
             const uniform = (name, value) => pipeline.set_uniform_1f(pipeline.get_uniform_location(name), value);
             pipeline.set_uniform_float(pipeline.get_uniform_location('glassSize'), 2, 1, [width, height]);
@@ -185,7 +272,7 @@ export const RefractionEffect = GObject.registerClass({
         } catch (error) {
             // Leave the native translucent tint if a driver cannot copy the
             // framebuffer. Do not retain or display an obsolete capture.
-            this._buffers.clear();
+            this.release();
             if (!this._failed)
                 console.error(`GSE refraction: ${error.message}`);
             this._failed = true;

@@ -1,4 +1,28 @@
-# Validação — Gnome Shell Extended 1.7.0
+# Validação — Gnome Shell Extended 1.8.0-beta.1
+
+## Capturas compactas, resolução e cadência — 2026-11-16
+
+- Build, parsing de 38 módulos, esquema estrito com 61 chaves, lifecycle e integrações aprovados. Preferências: seis páginas, 56 controles e bindings bidirecionais.
+- A cadência foi verificada com relógios simulados de 60, 120 e 144 Hz; retomada após repouso e mudança de frequência atualizam imediatamente, sem rajada de compensação.
+- Na sessão GNOME Shell/Mutter 51.1 com Intel xe e views a 125%/150%, o modo compatível registrou 120/60/30 capturas em dois segundos para 100%/50%/25%, enquanto a view manteve aproximadamente 120 pinturas. O modo Elementos registrou 60/60/30: a fonte parcial já limitava o modo 100% nessa cena. São limites, não uma exigência de gerar frames.
+- Box, Gaussian e Kawase passaram pelas três resoluções com desfoque real, saída RGB neutra e alvos menores. Na superfície de 400×32 a 125%, os alvos de filtro foram Box 176×64 → 96×40 → 52×24; Gaussian 192×80 → 96×40 → 56×28; Kawase 160×48 → 88×32 → 48×16. Margens maiores podem alterar a proporção efetiva de pixels poupados.
+- O probe leu o framebuffer apresentado: depois de parar a animação, as três cadências chegaram à cor final correta nos modos Monitor e Elementos. Não restaram temporizadores pendentes; destruir durante o refresh pendente os cancelou. Os três métodos reutilizaram o cache em quarter rate e atualizaram capturas ao mover o elemento.
+- A matriz fracionária aprovou bordas da barra, blur combinado com distorção, movimento, janelas Wayland reais, iterações Kawase, cache de wallpaper e dez ciclos de ativação/desativação. Zero frames na janela final de repouso e zero erro médio fora do elemento móvel nos três filtros combinados.
+- Foi corrigida uma mudança de amostragem observada ao alterar a distorção: como a lente arredondada desloca a amostra para dentro, a margem reserva o maior alcance entre kernel e lente. Uma lente contida no suporte do filtro não muda desnecessariamente a grade da captura.
+- A combinação com o dock real revelou um ciclo regional: em 0,5 s de repouso houve 30 pinturas, com duas capturas alternando filtros e reutilizações e nenhum temporizador ativo. O modo compatível interrompeu o ciclo. O agrupamento das margens sobrepostas corrigiu o caso; o ensaio completo e os seis casos de duas superfícies (Monitor/Elementos × 100/50/25%) terminaram com zero frames em repouso. Os prazos são alinhados para impedir que refreshes finais também se realimentem.
+- O teste de revelação de janelas agora espera a janela de cobertura obter foco antes de ativar a janela alvo, para medir uma mudança de foco real.
+- A redução de resolução e de capturas não constitui uma medição de economia total de GPU ou watts. O consumo relatado de 20% na sessão real não foi reproduzido nem declarado resolvido. O caminho de wallpaper permanece separado e as opções novas preservam os padrões Automática/100%.
+
+```sh
+make build
+GSE_TEST_PERFORMANCE=1 GSE_TEST_REGIONAL_REDRAW=1 GSE_TEST_PANEL_EDGE=1 GSE_TEST_MULTI=1 GSE_TEST_COMBINED=1 GSE_TEST_KAWASE=1 GSE_TEST_STATIC_PANEL=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_PERFORMANCE=1 GSE_TEST_REGIONAL_REDRAW=1 GSE_TEST_REGRESSIONS=1 GSE_TEST_FLICKER=1 GSE_TEST_FLICKER_BLUR=1 /usr/bin/python3 tests/headless.py
+```
+
+Evidência da matriz fracionária:
+`validation/single-multi-combined-panel-edge-kawase-static-panel-regional-performance-results.json`.
+Evidência do dock real e das margens sobrepostas:
+`validation/flicker-blur-regional-performance-results.json`.
 
 ## Promoção da beta.3 — 2026-11-16
 

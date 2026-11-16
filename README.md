@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão estável **1.7.0**, baseada na **1.7.0-beta.3**.
+preferências GTK4/Libadwaita. Versão de teste **1.8.0-beta.1**, baseada na estável **1.7.0**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -14,7 +14,7 @@ Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md
 | Docks | Dash to Dock/Ubuntu Dock: blur, opacidade do fundo e fundo invisível no Overview, preservando os ícones |
 | Sombras | Grade, pastas, dock e Alt+Tab; intensidade, raio e deslocamentos |
 | Aplicativos | Integração opcional por CSS para barras laterais do Nautilus/Configurações e menus GTK4; opacidade nativa dos perfis do Ptyxis |
-| Preferências | Seis abas, 54 controles, limites de valores e restauração de defaults |
+| Preferências | Seis abas, 56 controles, limites de valores e restauração de defaults |
 
 Por padrão, blur do calendário/configurações rápidas e painel adaptativo ficam
 ativos. Outros elementos podem ser habilitados individualmente. As integrações
@@ -33,6 +33,36 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. As medições são de cenas específicas; não há
 garantia de ganho percentual de CPU/GPU/RAM nem certificação em todas as versões.
+
+## Economia de renderização — 1.8.0-beta.1
+
+Em **Blur → Recursos**, os novos controles são independentes:
+
+- **Resolução do filtro dinâmico**: Automática, Metade por eixo e Um quarto por eixo. A resolução automática acompanha o raio físico; as outras opções reduzem ainda mais as texturas do filtro. Podem suavizar demais detalhes e revelar aproximações. A captura mantém a margem necessária ao kernel e à refração.
+- **Atualização do fundo dinâmico**: **100% (full rate)**, **50% (half rate)** e **25% (quarter rate)** da frequência de cada monitor. Em 60 Hz, são limites de 60, 30 e 15 atualizações por segundo; em 144 Hz, 144, 72 e 36. A interface continua na frequência normal. O compositor ou o redesenho regional podem produzir menos atualizações que o limite.
+
+As opções atendem Box, Fast Gaussian e Kawase em menus, barra dinâmica,
+docks e fundos de janelas. A barra estática, o Overview e o bloqueio usam
+outra fonte de wallpaper e mantêm sua resolução e política de cache.
+Os padrões continuam **Automática** e **100%**.
+
+Entre atualizações, a textura preparada é reaproveitada. Um único refresh
+pendente garante o último estado do fundo quando uma animação para; não há
+polling em repouso. Movimento/redimensionamento da captura e mudanças no
+filtro atualizam a fonte assim que a região necessária estiver disponível.
+Capturas de tela sempre usam pixels novos. Desativar/destruir o efeito cancela
+os refreshes pendentes. Se a API de frequência do monitor estiver indisponível,
+o limitador é desconsiderado.
+
+No modo **Elementos**, capturas cujas margens se cruzam são atualizadas juntas.
+Isso evita um ciclo em que uma pede a margem da outra indefinidamente, mesmo
+com o fundo parado. Os prazos do limitador também são alinhados por monitor.
+
+Box e Gaussian também passam a usar capturas compactas, sem o tamanho mínimo
+herdado dos backends antigos. A margem considera todo o kernel, a redução,
+a reconstrução e a refração. Isso pode poupar área principalmente em barras
+estreitas; reduzir a resolução também pode exigir margens maiores. Menos
+pixels nas passadas não equivale ao mesmo percentual de economia total de GPU.
 
 ## Blur estático da barra e desenho por elemento — 1.7.0
 

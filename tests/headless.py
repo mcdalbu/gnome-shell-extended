@@ -47,6 +47,8 @@ if os.environ.get('GSE_TEST_STATIC_PANEL'):
     VARIANT += '-static-panel'
 if os.environ.get('GSE_TEST_REGIONAL_REDRAW'):
     VARIANT += '-regional'
+if os.environ.get('GSE_TEST_PERFORMANCE'):
+    VARIANT += '-performance'
 
 
 
@@ -102,7 +104,7 @@ export default class Helper extends Extension {
                    XDG_CONFIG_HOME=str(base / 'config'), XDG_CACHE_HOME=str(base / 'cache'),
                    XDG_STATE_HOME=str(base / 'state'), XDG_RUNTIME_DIR=str(base / 'runtime'))
         if any(os.environ.get(key) for key in ['GSE_TEST_FLICKER', 'GSE_TEST_REFRACTION',
-                                             'GSE_TEST_COMBINED', 'GSE_TEST_PANEL_EDGE']):
+                                             'GSE_TEST_COMBINED', 'GSE_TEST_PANEL_EDGE', 'GSE_TEST_PERFORMANCE']):
             from frame_probe import build_probe
             env.update(build_probe(base))
         for key in ['DISPLAY', 'WAYLAND_DISPLAY', 'DBUS_STARTER_ADDRESS', 'DBUS_STARTER_BUS_TYPE']:
@@ -223,6 +225,9 @@ def test():
         if os.environ.get('GSE_TEST_REGIONAL_REDRAW'):
             from regional_redraw import run as test_regional_redraw
             test_regional_redraw(evaluate, wait, check, screenshot, results, shell.pid)
+        if os.environ.get('GSE_TEST_PERFORMANCE'):
+            from blur_performance import run as test_performance
+            test_performance(evaluate, wait, check, screenshot, results)
         if os.environ.get('GSE_TEST_GAUSSIAN_ITERATIONS'):
             from gaussian_iterations import run as test_gaussian_iterations
             test_gaussian_iterations(evaluate, wait, check, screenshot, results)
@@ -460,10 +465,33 @@ def test():
         check('lock-native-effect-restored', "nativeLockBlur.enabled && !lockBg.get_effect('gse-lock-blur')")
         evaluate('lockFixture.destroy()')
         time.sleep(0.5)
+        evaluate('''globalThis.idleSnapshot=()=>{
+            const effects=[];
+            const visit=a=>{const e=a.get_effect('gse-backdrop-blur');
+                if(e?.isRefraction)effects.push({parent:a.get_parent()?.name,mapped:a.mapped,
+                    position:a.get_transformed_position(),size:a.get_transformed_size(),
+                    statistics:{...e.statistics},config:e.glassConfig,
+                    timers:[...e._buffers.values()].map(b=>b.refreshSource??0)});
+                for(const c of a.get_children())visit(c)};
+            visit(global.stage);return effects};''')
+        results['idle-effects-before'] = evaluate('idleSnapshot()')
         evaluate("globalThis.idleFrames=0;globalThis.idleProbe=global.stage.connect('after-paint',()=>idleFrames++)")
         time.sleep(0.5)
         results['idle-frames'] = evaluate('idleFrames')
         evaluate('global.stage.disconnect(idleProbe)')
+        results['idle-effects-after'] = evaluate('idleSnapshot()')
+        if results['idle-frames'] > 3:
+            evaluate("cfg.set_string('blur-render-area','monitor')")
+            time.sleep(.5)
+            evaluate("idleFrames=0;idleProbe=global.stage.connect('after-paint',()=>idleFrames++)")
+            time.sleep(.5)
+            results['idle-compatible-diagnostic'] = evaluate('idleFrames')
+            evaluate('global.stage.disconnect(idleProbe);ext.disable()')
+            time.sleep(.5)
+            evaluate("idleFrames=0;idleProbe=global.stage.connect('after-paint',()=>idleFrames++)")
+            time.sleep(.5)
+            results['idle-disabled-diagnostic'] = evaluate('idleFrames')
+            evaluate('global.stage.disconnect(idleProbe)')
         assert results['idle-frames'] <= 3, 'Unexpected idle redraw loop'
         if os.environ.get('GSE_TEST_REGRESSIONS'):
             from regressions import run

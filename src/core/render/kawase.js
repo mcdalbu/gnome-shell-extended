@@ -23,14 +23,3 @@ export function kawaseSteps(iterations = 3) {
     }
     return stepsByIterations.get(iterations);
 }
-
-export function kawasePadding(blurRadius, strength, scale, iterations = 3) {
-    const physicalRadius = blurRadius * scale;
-    const reduction = Math.min(8, Math.max(2,
-        2 ** Math.floor(Math.log2(Math.max(1, physicalRadius / 6)))));
-    // Sum of all diagonal offsets, plus conservative support for the 2x
-    // pyramid, bilinear filter passes and final reconstruction. Use the
-    // configured final radius, so a fade never reallocates the capture.
-    return Math.ceil(physicalRadius * kawaseSteps(iterations).reduce((a, b) => a + b, 0) +
-        strength * scale + (iterations + 3) * 0.5 * reduction);
-}

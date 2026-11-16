@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.8.0-beta.1 — 2026-11-16
+
+- Estende capturas compactas ao Box e Gaussian, com margem calculada para kernel, redução, reconstrução e distorção.
+- Adiciona resolução do filtro dinâmico: automática, metade ou um quarto por eixo. Os três métodos atendem às opções; o wallpaper mantém seu caminho com cache.
+- Adiciona atualização do fundo dinâmico em 100%, 50% (half rate) ou 25% (quarter rate), relativa à frequência de cada monitor. Mantém a interface fluida e reutiliza a textura entre capturas.
+- Agenda somente um refresh final pendente para não deixar o último estado da animação desatualizado. Remove temporizadores ao liberar o efeito; screenshots ignoram o limitador, e alterações de geometria/filtro invalidam o cache.
+- Integra a limitação ao redesenho por Elementos para evitar pedidos de margem na cadência completa. Padrões preservados: resolução automática e atualização 100%.
+- Atualiza juntas as capturas com margens sobrepostas e sincroniza seus prazos. Corrige um ciclo de pedidos alternados de região que podia manter o desktop repintando em repouso, inclusive em 100%.
+- Adiciona testes com duas superfícies abertas em momentos diferentes, dano assimétrico e margens sobrepostas, além de diagnóstico das capturas e temporizadores em caso de falha no repouso.
+
 ## 1.7.0 — 2026-11-16
 
 - Promove a beta.3 a estável, com o mesmo código de execução, exceto a identificação em `metadata.json`.

@@ -34,6 +34,8 @@ export function readAppearance(settings) {
     const frosted = settings.get_boolean('frosted-glass-enabled');
     const method = settings.get_string('blur-method');
     return {blurRadius, strength, radius, frosted, capture: radius > 0,
+        resolution: settings.get_string('blur-resolution'),
+        refreshPercent: Number(settings.get_string('blur-refresh-rate')),
         method, samples: Number(settings.get_string('blur-samples')),
         iterations: settings.get_int(method === 'kawase' ? 'blur-kawase-iterations' : 'blur-iterations'),
         blurRatio: blurRadius / (radius || 1), strengthRatio: strength / (radius || 1)};

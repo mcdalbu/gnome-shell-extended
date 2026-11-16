@@ -42,6 +42,18 @@
       <summary>Blur method</summary>
       <description>Box blur, Fast Gaussian Blur, or lightweight Kawase with diagonal four-sample passes. Kawase approximates the blur with a different kernel.</description>
     </key>
+    <key name="blur-resolution" type="s">
+      <choices><choice value="auto"/><choice value="half"/><choice value="quarter"/></choices>
+      <default>'auto'</default>
+      <summary>Dynamic blur filter resolution</summary>
+      <description>Automatic radius-based resolution, half or quarter of that resolution along each axis. Smaller textures reduce filter work at the expense of detail. Applies to Box, Gaussian and Kawase live captures; cached wallpaper effects retain their resolution.</description>
+    </key>
+    <key name="blur-refresh-rate" type="s">
+      <choices><choice value="100"/><choice value="50"/><choice value="25"/></choices>
+      <default>'100'</default>
+      <summary>Dynamic backdrop refresh rate</summary>
+      <description>Maximum capture/filter update rate as a percentage of each monitor's refresh rate: full, half or quarter. Reuses the prepared texture between updates. Geometry and filter changes refresh immediately. One trailing refresh preserves the final background after motion; no polling loop. Screenshots always capture fresh pixels. Requires an introspectable monitor refresh rate. Does not throttle the interface or cached wallpaper.</description>
+    </key>
     <key name="blur-render-area" type="s">
       <choices><choice value="monitor"/><choice value="elements"/></choices>
       <default>'monitor'</default>
