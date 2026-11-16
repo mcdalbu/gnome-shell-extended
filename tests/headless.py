@@ -49,6 +49,8 @@ if os.environ.get('GSE_TEST_REGIONAL_REDRAW'):
     VARIANT += '-regional'
 if os.environ.get('GSE_TEST_PERFORMANCE'):
     VARIANT += '-performance'
+if os.environ.get('GSE_TEST_DOCK_DRAG'):
+    VARIANT += '-dock-drag'
 
 
 
@@ -57,7 +59,7 @@ def stage():
         base = Path(directory)
         target = base / 'data/gnome-shell/extensions' / UUID
         shutil.copytree(ROOT / 'build' / UUID, target)
-        if os.environ.get('GSE_TEST_REGRESSIONS') or os.environ.get('GSE_TEST_REAL_DOCK_CORNERS'):
+        if any(os.environ.get(k) for k in ['GSE_TEST_REGRESSIONS', 'GSE_TEST_REAL_DOCK_CORNERS', 'GSE_TEST_DOCK_DRAG']):
             dock = target.parent / 'dash-to-dock-extended@local'
             shutil.copytree(ROOT.parent / 'dash-to-dock-extended', dock,
                             ignore=shutil.ignore_patterns('.git', 'tests', 'validation', '*.zip'))
@@ -123,7 +125,7 @@ def test():
     from gi.repository import Gio, GLib
     shell_settings = Gio.Settings.new('org.gnome.shell')
     extensions = ['gse-test-helper@local', UUID]
-    if os.environ.get('GSE_TEST_REGRESSIONS'):
+    if os.environ.get('GSE_TEST_REGRESSIONS') or os.environ.get('GSE_TEST_DOCK_DRAG'):
         dock_path = Path(os.environ['XDG_DATA_HOME']) / 'gnome-shell/extensions/dash-to-dock-extended@local/schemas'
         dock_source = Gio.SettingsSchemaSource.new_from_directory(str(dock_path), Gio.SettingsSchemaSource.get_default(), False)
         dock_schema = dock_source.lookup('org.gnome.shell.extensions.dash-to-dock-extended', False)
@@ -228,6 +230,13 @@ def test():
         if os.environ.get('GSE_TEST_PERFORMANCE'):
             from blur_performance import run as test_performance
             test_performance(evaluate, wait, check, screenshot, results)
+        if os.environ.get('GSE_TEST_DOCK_DRAG'):
+            from regional_drag import run as test_drag
+            test_drag(evaluate, wait, check, results, ROOT, log)
+            if os.environ.get('GSE_TEST_DRAG_ONLY'):
+                results['passed'] = True
+                print(json.dumps(results, indent=2))
+                return 0
         if os.environ.get('GSE_TEST_GAUSSIAN_ITERATIONS'):
             from gaussian_iterations import run as test_gaussian_iterations
             test_gaussian_iterations(evaluate, wait, check, screenshot, results)

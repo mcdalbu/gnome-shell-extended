@@ -2,10 +2,38 @@
 import GLib from 'gi://GLib';
 import {ModuleManager} from '../src/core/moduleManager.js';
 import {ResourceScope} from '../src/core/utils.js';
+import {watchWindowMotion, windowMotionActive, WindowMotion} from '../src/core/render/windowMotion.js';
 
 function assert(condition, message) {
     if (!condition)
         throw new Error(message);
+}
+
+// Native grabs temporarily bypass regional buffering, including the dock's
+// settling animation, and must leave no display signals on extension disable.
+{
+    const callbacks = new Map();let next = 0, now = 0, redraws = 0;
+    const display = {connect: (name, fn) => { callbacks.set(++next,{name,fn}); return next; },
+        disconnect: id => callbacks.delete(id)};
+    const emit = (name, op) => {for(const {name:n,fn} of callbacks.values())if(n===name)fn(display,null,op)};
+    const ops = {MOVING:1,MOVING_UNCONSTRAINED:2,KEYBOARD_MOVING:3,RESIZING_N:4,KEYBOARD_RESIZING_SE:5,POPUP:6};
+    const start = () => watchWindowMotion(display,ops,()=>now,()=>redraws++);
+    const stop = start();
+    emit('grab-op-begin',ops.POPUP);assert(!windowMotionActive(),'Popup leaves regional rendering enabled');
+    for (const op of [1,2,3,4,5]) {
+        emit('grab-op-begin',op);assert(windowMotionActive(),'Pointer and keyboard geometry grabs bypass regional buffering');
+        emit('grab-op-end',op);assert(windowMotionActive(),'Dock settling stays on compatible redraws');
+        now+=250001;assert(!windowMotionActive(),'Regional redraw resumes without a timer or polling');
+    }
+    assert(redraws===5,'Exactly one final redraw per geometry grab');
+    emit('grab-op-begin',ops.MOVING);stop();stop();
+    assert(!windowMotionActive() && callbacks.size===0,'Disable mid-grab clears state and signals');
+    const stopAgain=start();assert(!windowMotionActive(),'Re-enable starts with clean motion state');stopAgain();
+    let count=0;
+    try {new WindowMotion({...display,connect:(...args)=>{
+        if(++count===2)throw Error('second signal failed');return display.connect(...args);
+    }},ops,()=>now,()=>{});} catch {}
+    assert(callbacks.size===0,'Partly constructed watcher cleans its first signal');
 }
 
 class Settings {

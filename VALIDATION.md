@@ -1,4 +1,28 @@
-# Validação — Gnome Shell Extended 1.8.0-beta.1
+# Validação — Gnome Shell Extended 1.8.0-beta.2
+
+## Arraste nativo junto ao dock — 2026-11-16
+
+- Watcher de operações nativas de mover/redimensionar, incluindo variantes por teclado e sem restrições. Lifecycle verifica período de acomodação, ausência de polling, uma atualização final por operação, limpeza no meio do grab, reativação e falha parcial de conexão.
+- Build com 39 módulos e 61 chaves aprovado. O número de controles permanece 56; nenhuma preferência foi acrescentada ou alterada pelo arraste.
+- Cliente GTK4/Wayland com identidade de Ptyxis e fundo translúcido, ponteiro virtual e `Meta.Window.begin_grab_op`: arraste efetivo em direção ao Dash to Dock Extended real e de volta. A janela cruzou o limite de intellihide e o dock completou mostrar/recolher nos quatro casos Monitor/Elementos × blur de janela/dock desligado/ligado.
+- Durante o movimento com grab ativo, a barra e a janela ficaram fora do painter regional. Com blur de janela ligado e atualização 100%, todos os frames em que a posição mudou atualizaram a captura da janela. Elementos voltou após o grab; os quatro cenários passaram na checagem de repouso.
+- No ensaio inicial a 100%, os maiores intervalos durante movimento ficaram entre 18,17 e 22,59 ms. Na beta.1, ficaram entre 17,60 e 18,47 ms; a pausa longa relatada não foi reproduzida. As execuções não fixaram clocks nem repetiram ordens para estabelecer ganho de desempenho. A correção evita a espera regional durante a interação, ao custo de redesenhar mais pixels nesse intervalo.
+
+```sh
+make build
+GSE_TEST_DOCK_DRAG=1 GSE_TEST_DRAG_ONLY=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_DOCK_DRAG=1 GSE_TEST_REGIONAL_REDRAW=1 GSE_TEST_REGRESSIONS=1 GSE_TEST_FLICKER=1 GSE_TEST_FLICKER_BLUR=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_DOCK_DRAG=1 GSE_TEST_MULTI=1 GSE_TEST_PERFORMANCE=1 GSE_TEST_REGIONAL_REDRAW=1 GSE_TEST_STATIC_PANEL=1 /usr/bin/python3 tests/headless.py
+```
+
+Evidências iniciais: `validation/regional-drag-baseline-beta1/single-dock-drag-results.json`
+e `validation/single-dock-drag-results.json`.
+
+As duas matrizes completas também passaram, incluindo escalas 125%/150%,
+cadências 100/50/25%, margens sobrepostas, barra estática, testes de pixels do
+dock real e dez ciclos de ativação/desativação. Zero frames na janela final
+de repouso. Relatórios: `validation/flicker-blur-regional-dock-drag-results.json`
+e `validation/single-multi-static-panel-regional-performance-dock-drag-results.json`.
 
 ## Capturas compactas, resolução e cadência — 2026-11-16
 

@@ -4,6 +4,9 @@ import {migrateAppearance} from './core/appearance.js';
 import {MODULE_LOADERS} from './core/config.js';
 import {Logger} from './core/logger.js';
 import {ModuleManager} from './core/moduleManager.js';
+import {watchWindowMotion} from './core/render/windowMotion.js';
+import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 export default class GnomeShellExtended extends Extension {
@@ -13,6 +16,11 @@ export default class GnomeShellExtended extends Extension {
         this._manager = new ModuleManager(settings, MODULE_LOADERS,
             new Logger(settings.get_boolean('debug-logging')));
         try {
+            this._stopMotion = watchWindowMotion(global.display, Meta.GrabOp,
+                () => GLib.get_monotonic_time(), () => {
+                    if (settings.get_string('blur-render-area') === 'elements')
+                        global.stage.queue_redraw();
+                });
             this._manager.setSuspended(Main.sessionMode.isLocked);
             this._manager.enable();
             this._sessionId = Main.sessionMode.connect('updated', () => {
@@ -32,5 +40,7 @@ export default class GnomeShellExtended extends Extension {
         this._sessionId = 0;
         this._manager?.disable();
         this._manager = null;
+        this._stopMotion?.();
+        this._stopMotion = null;
     }
 }

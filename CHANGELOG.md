@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.0-beta.2 — 2026-11-16
+
+- Suspende o redesenho regional enquanto uma janela é movida ou redimensionada, usando o caminho compatível para evitar espera de regiões incompletas durante interação com o dock.
+- Inclui operações por teclado e movimentação sem restrições. Mantém a proteção por 250 ms após soltar, sem polling ou loop de frames, e retoma Elementos automaticamente.
+- Descarta pedidos regionais pendentes durante a interação. Os sinais de grab pertencem à extensão e são removidos ao desativar, inclusive no meio de um arraste.
+- Adiciona regressão com arraste nativo por ponteiro de uma janela Wayland translúcida junto ao Dash to Dock Extended real, com/sem blur de janela/dock, além de testes de retomada e repouso.
+- A pausa longa relatada não foi reproduzida na sessão privada a 60 Hz. Esta é uma proteção de estabilidade para o caminho regional; não representa uma medição de ganho de GPU ou garantia de eliminar todo hitch em outras sessões.
+
 ## 1.8.0-beta.1 — 2026-11-16
 
 - Estende capturas compactas ao Box e Gaussian, com margem calculada para kernel, redução, reconstrução e distorção.

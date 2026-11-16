@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão de teste **1.8.0-beta.1**, baseada na estável **1.7.0**.
+preferências GTK4/Libadwaita. Versão de teste **1.8.0-beta.2**, baseada na estável **1.7.0**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -33,6 +33,19 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. As medições são de cenas específicas; não há
 garantia de ganho percentual de CPU/GPU/RAM nem certificação em todas as versões.
+
+## Movimento de janelas perto do dock — 1.8.0-beta.2
+
+O modo **Elementos** usa temporariamente o redesenho compatível durante um
+arraste ou redimensionamento nativo de janela, inclusive pelo teclado. Isso
+evita esperar regiões incompletas do fundo enquanto a janela e o dock estão
+se movendo. Após soltar, mantém a proteção por 250 ms para a animação do dock
+e retoma Elementos nos próximos frames. A preferência selecionada é mantida.
+
+O caminho compatível pode desenhar mais pixels nesse intervalo. A barra
+estática continua independente; resolução e limite de atualização mantêm
+suas configurações. Não há polling nem temporizador repetitivo: o período é
+verificado apenas em frames que o compositor já desenharia.
 
 ## Economia de renderização — 1.8.0-beta.1
 

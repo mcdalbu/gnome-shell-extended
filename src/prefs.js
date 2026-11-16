@@ -111,7 +111,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             'Kawase reduz o trabalho do filtro. O custo total também depende da captura e da composição do Shell. Blur e distorção desligados liberam as capturas do fundo.');
         choice(performance, 'blur-render-area', 'Área de redesenho do blur', ['monitor', 'elements'],
             ['Monitor (compatível)', 'Elementos (experimental)'],
-            'Atualiza os elementos e suas margens pelo redesenho nativo, podendo atrasar o blur em um frame. Usa o modo compatível quando indisponível.');
+            'Atualiza os elementos e suas margens pelo redesenho nativo, podendo atrasar o blur em um frame. Usa o modo compatível durante mover/redimensionar janelas e quando indisponível.');
         choice(performance, 'blur-resolution', 'Resolução do filtro dinâmico', ['auto', 'half', 'quarter'],
             ['Automática', 'Metade por eixo', 'Um quarto por eixo'],
             'Texturas menores economizam trabalho do filtro, com perda de detalhes. Aplica-se a Box, Gaussian e Kawase; o papel de parede estático já usa cache.');

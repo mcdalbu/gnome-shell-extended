@@ -12,8 +12,8 @@
     "50",
     "51"
   ],
-  "version": 28,
-  "version-name": "1.8.0-beta.1",
+  "version": 29,
+  "version-name": "1.8.0-beta.2",
   "settings-schema": "org.gnome.shell.extensions.gnome-shell-extended",
   "session-modes": [
     "user",

@@ -58,7 +58,7 @@
       <choices><choice value="monitor"/><choice value="elements"/></choices>
       <default>'monitor'</default>
       <summary>Dynamic blur redraw area</summary>
-      <description>Compatible monitor redraws, or experimental native element redraws including filter margins. An incomplete source uses the cached image while requesting its region for the next frame, which may add one frame of blur latency. Unsupported APIs fall back to compatible redraws. Static wallpaper panels do not need this guard.</description>
+      <description>Compatible monitor redraws, or experimental native element redraws including filter margins. An incomplete source uses the cached image while requesting its region for the next frame, which may add one frame of blur latency. Moving/resizing windows uses compatible redraws through the interaction and a 250ms settling period, avoiding region waits near an animating dock. Unsupported APIs also fall back to compatible redraws. Static wallpaper panels do not need this guard.</description>
     </key>
     <key name="blur-samples" type="s">
       <choices><choice value="5"/><choice value="9"/><choice value="13"/></choices>

@@ -4,6 +4,7 @@ import GObject from 'gi://GObject';
 import Mtk from 'gi://Mtk';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import {windowMotionActive} from './windowMotion.js';
 
 const owners = new Map();
 const sources = new Map();
@@ -43,6 +44,10 @@ function requestRefresh(owner, rect) {
 
 function flushRequests() {
     later = 0;
+    if (windowMotionActive()) {
+        pending.clear();
+        return false;
+    }
     try {
         redrawRequests();
     } catch (error) {
@@ -119,7 +124,7 @@ function redrawRequests() {
 // request only that rectangle for the next frame. This can add one frame of
 // latency; a completed refresh schedules nothing further, so idle stays idle.
 function paint(stage, view, original) {
-    if (!original || failed)
+    if (!original || failed || windowMotionActive())
         return;
     try {
         let captures = 0;
@@ -140,7 +145,7 @@ function paint(stage, view, original) {
                 effect.captureDeferred = !ready;
                 state.effects.add(effect);
                 effect.regionalRefresh ??= () => {
-                    if (failed || !sources.has(owner) || !child.mapped || Main.overview.visible ||
+                    if (failed || windowMotionActive() || !sources.has(owner) || !child.mapped || Main.overview.visible ||
                         view.get_transform() !== 0 || owner._settings?.get_string('blur-render-area') !== 'elements')
                         return;
                     const rect = captureRectangle(child, view);
@@ -192,7 +197,7 @@ function paint(stage, view, original) {
 }
 
 export function begin(owner, actor, view) {
-    if (!supported || failed || !view || Main.overview.visible || view.get_transform() !== 0)
+    if (!supported || failed || !view || Main.overview.visible || view.get_transform() !== 0 || windowMotionActive())
         return false;
     owners.set(owner, {actor, view, effects: new Set()});
     sources.set(owner, actor);

@@ -394,9 +394,10 @@ def test_panel_rendered_fade(evaluate, wait, results):
 def test_window_reveal(evaluate, wait, check, results, root, display_env, log):
     process=subprocess.Popen(['gjs','-m',str(root/'tests/windowFade.js')],env=display_env,stdout=log,stderr=log)
     try:
-        wait("global.get_window_actors().some(a=>a.meta_window.get_title()==='GSE fade target') && global.get_window_actors().some(a=>a.meta_window.get_title()==='GSE fade cover')")
+        wait("['GSE fade target','GSE fade cover'].every(t=>global.get_window_actors().some(a=>a.meta_window.get_title()===t && a.mapped && a.width>0))")
         evaluate("globalThis.fadeTarget=global.get_window_actors().find(a=>a.meta_window.get_title()==='GSE fade target');globalThis.fadeCover=global.get_window_actors().find(a=>a.meta_window.get_title()==='GSE fade cover');for(const a of [fadeTarget,fadeCover])a.meta_window.move_resize_frame(false,Main.layoutManager.primaryMonitor.x+120,Main.layoutManager.primaryMonitor.y+180,600,360);fadeCover.meta_window.activate(global.get_current_time());globalThis.windowFadeSettings=[cfg.get_int('blur-radius'),cfg.get_double('blur-brightness')];cfg.set_int('blur-radius',48);cfg.set_double('blur-brightness',1)")
         wait("ext._manager._slots.get('opacity').instance.windowBlur._windows.get(fadeTarget)?.captures.size>0")
+        evaluate('fadeCover.meta_window.activate(global.display.get_current_time_roundtrip())')
         wait('global.display.focus_window===fadeCover.meta_window')
         time.sleep(0.5)
         evaluate("""globalThis.windowFadeFrames=[];
