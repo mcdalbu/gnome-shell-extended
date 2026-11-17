@@ -1,4 +1,20 @@
-# Validação — Gnome Shell Extended 1.8.0-beta.3
+# Validação — Gnome Shell Extended 1.8.0
+
+## Promoção para estável — 2026-11-16
+
+A release 1.8.0 (31) promove o commit `fde68107580c7bcb4d6e118ef65dae0321675105`
+da beta.3. A comparação byte a byte deve confirmar que todos os arquivos de
+execução e schemas são idênticos, exceto `metadata.json`. A documentação recebe
+a identificação de release estável; nenhuma preferência do usuário é alterada.
+
+A promoção repete build, parsing dos 46 módulos, lifecycle, cache/oclusão,
+61 chaves e fila assíncrona de integrações. Uma sessão GNOME privada identifica
+a versão estável e verifica memória, retomada, oclusão XRGB, fonte atual do
+wallpaper, cache final e descarte de passagens antigas. As seis matrizes da
+beta.3 permanecem evidência do mesmo código, incluindo dock real, flicker,
+cadência 50%/25%, escalas fracionárias e fallback de wallpaper.
+
+Pacote, comparação com a beta e evidências ficam em `validation/release-1.8.0/`.
 
 ## Revisão de desempenho — 2026-11-16
 

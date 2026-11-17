@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.0 — 2026-11-16
+
+- Promove a 1.8.0-beta.3 para estável, com o mesmo código de execução e esquema de preferências; altera somente a identificação da versão e a documentação.
+- Inclui resolução automática/metade/um quarto, atualização 100%/50%/25%, capturas compactas e proteção de redesenho durante mover/redimensionar janelas junto ao dock.
+- Inclui os dez pontos principais da revisão de desempenho: suspensão de superfícies ocultas, oclusão conservadora, wallpaper reduzido e cache final, reutilização de armazenamento, snapshots por fase, preferências agrupadas, brilho separado, expiração transitória, cache de uniforms e integrações assíncronas.
+- Mantém fallback para informações de opacidade ou APIs de wallpaper indisponíveis. O recorte interno dos widgets de outro aplicativo continua dependendo de informação confiável que o Shell não expõe.
+- Publica ZIP instalável, checksums e evidências de validação, sem promessa de redução percentual de GPU ou watts em todas as sessões.
+
+
 ## 1.8.0-beta.3 — 2026-11-16
 
 - Implementa os dez pontos principais da revisão de desempenho da beta.2: suspensão de superfícies ocultas, oclusão conservadora, wallpaper reduzido, reutilização de pirâmides, snapshots por fase, classificação de preferências, acabamento separado, expiração transitória, cache de uniforms/capacidades e I/O fora do processo Shell.

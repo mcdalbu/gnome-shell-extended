@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão de teste **1.8.0-beta.3**, baseada na estável **1.7.0**.
+preferências GTK4/Libadwaita. Versão estável **1.8.0**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -33,6 +33,13 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. As medições são de cenas específicas; não há
 garantia de ganho percentual de CPU/GPU/RAM nem certificação em todas as versões.
+
+## Release estável — 1.8.0
+
+Promove a beta.3 com o mesmo código de execução, alterando apenas a identificação
+da versão e a documentação. Inclui resolução reduzida, atualização 50%/25%,
+wallpaper em cache, suspensão de superfícies ocultas, oclusão conservadora e
+integrações assíncronas. Mantém a proteção durante arrastes junto ao dock.
 
 ## Revisão de desempenho — 1.8.0-beta.3
 
