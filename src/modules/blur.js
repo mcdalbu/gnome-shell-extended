@@ -3,6 +3,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Signals} from '../core/render/signals.js';
 import {ResourceScope} from '../core/utils.js';
 import {SurfaceBinding, childSignal} from '../core/actors.js';
+import {EFFECT_KEYS} from '../core/appearanceKeys.js';
 
 export default class BlurModule {
     constructor({settings, logger}) {
@@ -15,10 +16,18 @@ export default class BlurModule {
 
     enable() {
         this.active = true;
-        const sync = this.scope.debounce(this.settings.get_int('resize-debounce-ms'), () => this.sync());
+        const changed = new Set();
+        const sync = this.scope.debounce(0, () => {
+            const background = [...changed].some(key => EFFECT_KEYS.has(key) ||
+                ['blur-overview', 'blur-lock-screen', 'surface-opacity'].includes(key));
+            changed.clear();
+            this.sync(background);
+        });
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
-            if (key.startsWith('blur-') || key.startsWith('refraction-') || key === 'frosted-glass-enabled' || ['surface-opacity', 'update-frequency'].includes(key))
-                this.sync();
+            if (key.startsWith('blur-') || key.startsWith('refraction-') || key === 'frosted-glass-enabled' || ['surface-opacity', 'update-frequency'].includes(key)) {
+                changed.add(key);
+                sync();
+            }
         });
         this.signals.connect(Main.layoutManager, 'startup-complete', () => this.sync());
         this.signals.connect(Main.layoutManager, 'monitors-changed', sync);
@@ -89,7 +98,7 @@ export default class BlurModule {
         inspect();
     }
 
-    sync() {
+    sync(updateBackgrounds = true) {
         if (!this.active)
             return;
         for (const [key, menu] of [
@@ -123,7 +132,8 @@ export default class BlurModule {
                 this.backgrounds.enable();
             }).catch(error => this.logger.error('Wallpaper blur', error));
         }
-        this.backgrounds?.sync();
+        if (updateBackgrounds)
+            this.backgrounds?.sync();
     }
 
     disable() {

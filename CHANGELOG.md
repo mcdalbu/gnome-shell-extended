@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.8.0-beta.3 — 2026-11-16
+
+- Implementa os dez pontos principais da revisão de desempenho da beta.2: suspensão de superfícies ocultas, oclusão conservadora, wallpaper reduzido, reutilização de pirâmides, snapshots por fase, classificação de preferências, acabamento separado, expiração transitória, cache de uniforms/capacidades e I/O fora do processo Shell.
+- Wallpaper usa paint nodes para executar as passagens após a pintura da fonte, em alvos menores e com cache final. Passagens agendadas têm alvos reduzidos próprios para preservar a ordem dos journals Cogl; o renderer dinâmico mantém ping-pong imediato. Há fallback para a cadeia anterior quando as APIs necessárias não existem.
+- Mantém a árvore do Overview aquecida por até cinco segundos e limita globalmente os caches ocultos a uma estimativa RGBA8 de 128 MiB. Capturas de screenshots expiram em 500 ms, preservando a captura integral de cada operação.
+- Oclusão exige RGB/Wayland e cobertura da superfície raiz, sem efeitos, recortes ou transforms desconhecidos. Janelas RGBA continuam renderizando; transparência não é inferida por leitura de pixels.
+- Integrações externas usam fila serializada em subprocesso, com snapshots pendentes agrupados e restauração final ordenada. Sombras agrupam alterações e escrevem CSS de forma assíncrona.
+- Preserva a proteção durante mover/redimensionar e o retorno automático ao modo Elementos. Inclui regressões de memória, geometria, pixels de wallpaper, oclusão com cliente XRGB real e retomada após exposição.
+
+
 ## 1.8.0-beta.2 — 2026-11-16
 
 - Suspende o redesenho regional enquanto uma janela é movida ou redimensionada, usando o caminho compatível para evitar espera de regiões incompletas durante interação com o dock.

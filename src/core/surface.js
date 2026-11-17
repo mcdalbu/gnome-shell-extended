@@ -14,6 +14,8 @@ import {windowDamage, boundsIntersect} from './render/windowDamage.js';
 import {BackdropGroup} from './render/backdropGroup.js';
 import {readAppearance} from './appearance.js';
 import {syncFrostedGlass, clearFrostedGlass} from './render/frostedGlass.js';
+import {capturePadding} from './render/blurPerformance.js';
+import {retainHidden, forgetHidden, captureBytes} from './render/hiddenCache.js';
 
 // One instance per visible surface, released on close. Sibling capture keeps
 // offscreen popup effects from blurring foreground text or sampling themselves.
@@ -31,6 +33,7 @@ export class Surface {
         this._destroyed = false;
         this._generation = 0;
         this._state = {captures: new Map()};
+        this._framesActive = false;
         this._paintedViews = new Set();
         try {
             this.group = new BackdropGroup({name: 'gse-surface', width: 0, height: 0, reactive: false});
@@ -38,6 +41,7 @@ export class Surface {
                 style: 'background-color: transparent;'});
             this.group.add_child(this.blur);
             this._state.blur = this.blur;
+            this.blur._gseCaptures = this._state.captures;
             this.clip = new RoundedClip();
             this.clip.clipSource = box;
             this.blur.add_effect_with_name('gse-rounded-clip', this.clip);
@@ -62,13 +66,14 @@ export class Surface {
                     });
                 }
             });
-            // A dock can remain mapped while its slide container has an empty
-            // clip. Allocate/clip changes must also clear the last painted frame.
+            // Hidden frames are suspended, so ancestors above the anchor must
+            // also wake us. Screenshot UI and other containers fade while the
+            // box itself stays mapped and keeps its own opacity unchanged.
+            // Clip/allocation changes also clear the last painted frame.
             for (let source = box; source; source = source.get_parent()) {
-                for (const property of ['allocation', 'has-clip', 'clip-rect', 'clip-to-allocation', 'mapped', 'opacity'])
+                for (const property of ['allocation', 'has-clip', 'clip-rect', 'clip-to-allocation', 'mapped', 'opacity',
+                    'translation-x', 'translation-y', 'scale-x', 'scale-y'])
                     this.signals.connect(source, `notify::${property}`, () => this._queueLayoutSync());
-                if (source === anchor)
-                    break;
             }
             this.signals.connect(Main.layoutManager, 'monitors-changed', () => {
                 this._paintedViews.clear();
@@ -76,58 +81,7 @@ export class Surface {
                 this._geometry();
                 this._repaint();
             });
-            this.frames.connect(global.stage, 'before-update', (_stage, view) => {
-                this._inFrame = true;
-                // A final hide still needs the previous sampled area cleared
-                // during this frame. Keep the guard until after-update.
-                const previouslyPainted = view ? this._paintedViews.has(view) : this._paintedViews.size > 0;
-                if (!this._economical && previouslyPainted)
-                    this.guard.begin(this.blur, view, this.box, true);
-                if (!this._syncVisibility()) {
-                    return;
-                }
-                const parent = this.anchor.get_parent();
-                if (parent !== this.group.get_parent()) {
-                    this.destroy();
-                    return;
-                }
-                // A switcher can own separate app-list and thumbnail surfaces.
-                // Keep both below its root without endlessly swapping them.
-                let previous = this.anchor.get_previous_sibling();
-                while (this.options.allowSiblingGaps && previous && previous !== this.group &&
-                    previous.name === 'gse-surface')
-                    previous = previous.get_previous_sibling();
-                if (previous !== this.group)
-                    parent.set_child_below_sibling(this.group, this.anchor);
-                this._geometry();
-                if (!previouslyPainted && this.backend && this._radius > 0 && this._alpha < 1)
-                    this.guard.begin(this.blur, view, this.box);
-            });
-            this.frames.connect(global.stage, 'before-paint', (_stage, view) => {
-                if (!this._syncVisibility()) {
-                    if (view)
-                        this._paintedViews.delete(view);
-                    else
-                        this._paintedViews.clear();
-                    return;
-                }
-                this._geometry();
-                if (this.backend && this._visible())
-                    this._capture(view);
-                if (view && !this._economical) {
-                    const [x, y] = this.box.get_transformed_position();
-                    const [w, h] = this.box.get_transformed_size();
-                    const r = view.layout;
-                    if (this.blur.visible && x < r.x + r.width && x + w > r.x && y < r.y + r.height && y + h > r.y)
-                        this._paintedViews.add(view);
-                    else
-                        this._paintedViews.delete(view);
-                }
-            });
-            this.frames.connect(global.stage, 'after-update', () => {
-                this._inFrame = false;
-                this.guard.end();
-            });
+            this._startFrames();
             this.signals.connect(global.display, 'restacked', () => this._repaint());
             this.update();
         } catch (error) {
@@ -136,24 +90,106 @@ export class Surface {
         }
     }
 
-    _visible() {
+    _phaseCallback(callback) {
+        return (...args) => {
+            this._inPhase = true;
+            this._snapshotCache = null;
+            try { return callback(...args); }
+            finally { this._inPhase = false; this._snapshotCache = null; }
+        };
+    }
+
+    _startFrames() {
+        if (this._framesActive || this._destroyed)
+            return;
+        this._framesActive = true;
+        this.frames.connect(global.stage, 'before-update', this._phaseCallback((_stage, view) => {
+            this._inFrame = true;
+            // A final hide still needs the previous sampled area cleared
+            // during this frame. Keep the guard until after-update.
+            const previouslyPainted = view ? this._paintedViews.has(view) : this._paintedViews.size > 0;
+            if (!this._economical && previouslyPainted)
+                this.guard.begin(this.blur, view, this.box, true);
+            if (!this._syncVisibility()) {
+                return;
+            }
+            const parent = this.anchor.get_parent();
+            if (parent !== this.group.get_parent()) {
+                this.destroy();
+                return;
+            }
+            // A switcher can own separate app-list and thumbnail surfaces.
+            // Keep both below its root without endlessly swapping them.
+            let previous = this.anchor.get_previous_sibling();
+            while (this.options.allowSiblingGaps && previous && previous !== this.group &&
+                previous.name === 'gse-surface')
+                previous = previous.get_previous_sibling();
+            if (previous !== this.group)
+                parent.set_child_below_sibling(this.group, this.anchor);
+            this._geometry();
+            if (!previouslyPainted && this.backend && this._radius > 0 && this._alpha < 1)
+                this.guard.begin(this.blur, view, this.box);
+        }));
+        this.frames.connect(global.stage, 'before-paint', this._phaseCallback((_stage, view) => {
+            if (!this._syncVisibility()) {
+                if (view)
+                    this._paintedViews.delete(view);
+                else
+                    this._paintedViews.clear();
+                return;
+            }
+            this._geometry();
+            if (this.backend && this._visible())
+                this._capture(view);
+            if (view && !this._economical) {
+                const {x, y, width: w, height: h} = this._snapshot();
+                const r = view.layout;
+                if (this.blur.visible && x < r.x + r.width && x + w > r.x && y < r.y + r.height && y + h > r.y)
+                    this._paintedViews.add(view);
+                else
+                    this._paintedViews.delete(view);
+            }
+        }));
+        this.frames.connect(global.stage, 'after-update', () => {
+            this._inFrame = false;
+            this.guard.end();
+            if (!this.group?.visible) {
+                this.frames.clear();
+                this._framesActive = false;
+                this._paintedViews.clear();
+            }
+        });
+    }
+
+    _snapshot() {
+        if (this._inPhase && this._snapshotCache)
+            return this._snapshotCache;
+        const result = this._measure();
+        if (this._inPhase)
+            this._snapshotCache = result;
+        return result;
+    }
+
+    _measure() {
         if (this._destroyed || !this.box.mapped || this.box.get_paint_opacity() === 0 ||
             Main.sessionMode.isLocked || Main.screenShield?.active)
-            return false;
+            return {visible: false};
         for (let source = this.box; source; source = source.get_parent()) {
             if (source.has_clip) {
                 const [, , width, height] = source.get_clip();
                 if (width <= 0 || height <= 0)
-                    return false;
+                    return {visible: false};
             }
             if (source.clip_to_allocation && (source.width <= 0 || source.height <= 0))
-                return false;
+                return {visible: false};
         }
         const [x, y] = this.box.get_transformed_position();
         const [width, height] = this.box.get_transformed_size();
-        return Main.layoutManager.monitors.some(m => x < m.x + m.width &&
-            x + width > m.x && y < m.y + m.height && y + height > m.y);
+        return {x, y, width, height, visible: Main.layoutManager.monitors.some(m => x < m.x + m.width &&
+            x + width > m.x && y < m.y + m.height && y + height > m.y)};
     }
+
+    _visible() { return this._snapshot().visible; }
 
     _syncVisibility() {
         if (!this.group || this._destroyed)
@@ -180,10 +216,37 @@ export class Surface {
                 this._repaint();
             }
         }
+        this._syncSubscriptions(visible);
+        if (visible) {
+            forgetHidden(this);
+            this._startFrames();
+        } else if (this._state.captures.size) {
+            retainHidden(this, captureBytes(this._state.captures), () => this._clearCaptures());
+        }
         return visible;
     }
 
+    _syncSubscriptions(visible = this.group?.visible) {
+        const wanted = visible && this._wantBlur && this.backend;
+        if (!wanted) {
+            this._stopDamage?.();
+            this._stopDamage = null;
+        } else {
+            this._stopDamage ??= windowDamage.subscribe(bounds => {
+                const area = this._snapshot();
+                if (!area.visible)
+                    return;
+                const scales = [...this._state.captures.keys()].map(v => v.get_scale());
+                const margin = Math.max(0, ...scales.map(scale => capturePadding(this._state.glassConfig, scale) / scale));
+                if (bounds.some(rect => boundsIntersect(rect,
+                    {x:area.x, y:area.y, right:area.x+area.width, bottom:area.y+area.height}, margin)))
+                    this._repaint();
+            });
+        }
+    }
+
     _queueLayoutSync() {
+        this._snapshotCache = null;
         if (this._destroyed || this._layoutLater)
             return;
         // Allocation notifications describe individual steps of the slider's
@@ -221,6 +284,7 @@ export class Surface {
         const enabled = this.options.blur?.() !== false && this._baseAlpha < 1;
         const wantGlass = enabled && appearance.frosted;
         const wantBlur = enabled && appearance.capture;
+        this._wantBlur = wantBlur;
         this.clip.shaderClip = wantBlur;
         this.blur.visible = wantBlur || wantGlass;
         if (wantGlass)
@@ -250,22 +314,14 @@ export class Surface {
                     this._loading = null;
                     this._geometry();
                     this._capture();
+                    this._syncSubscriptions();
                     this._repaint();
                 }).catch(error => {
                     this._loading = null;
                     this.logger.error('Blur backend', error);
                 });
             }
-            this._stopDamage ??= windowDamage.subscribe(bounds => {
-                if (!this._visible())
-                    return;
-                const [x, y] = this.box.get_transformed_position();
-                const [w, h] = this.box.get_transformed_size();
-                const margin = this._radius * 3;
-                const area = {x: x - margin, y: y - margin, right: x + w + margin, bottom: y + h + margin};
-                if (bounds.some(rect => boundsIntersect(rect, area)))
-                    this._repaint();
-            });
+
         }
         this._geometry();
         this._syncVisibility();
@@ -289,8 +345,7 @@ export class Surface {
     _geometry() {
         if (!this._visible() || !this.group)
             return;
-        const [x, y] = this.box.get_transformed_position();
-        const [w, h] = this.box.get_transformed_size();
+        const {x, y, width: w, height: h} = this._snapshot();
         const parent = this.group.get_parent();
         const [ok, left, top] = parent.transform_stage_point(x, y);
         const [end, right, bottom] = parent.transform_stage_point(x + w, y + h);
@@ -328,8 +383,7 @@ export class Surface {
         // frosted while only the CSS tint is still transparent.
         fade *= this.options.fade?.() ?? 1;
         if (this.options.dock) {
-            const [x, y] = this.box.get_transformed_position();
-            const [width, height] = this.box.get_transformed_size();
+            const {x, y, width, height} = this._snapshot();
             if (width > 0 && height > 0) {
                 const area = Main.layoutManager.monitors.reduce((sum, m) => sum +
                     Math.max(0, Math.min(x + width, m.x + m.width) - Math.max(x, m.x)) *
@@ -370,6 +424,7 @@ export class Surface {
         if (this._destroyed)
             return;
         this._destroyed = true;
+        forgetHidden(this);
         if (this._layoutLater)
             global.compositor.get_laters().remove(this._layoutLater);
         this._layoutLater = 0;

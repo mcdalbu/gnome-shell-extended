@@ -55,10 +55,10 @@ def run(evaluate, wait, check, screenshot, results):
             .every(c=>!c.effect._failed && [...c.effect._buffers.values()].some(b=>b.filter))''')
         evaluate("cfg.set_boolean('blur-overview',true);Main.overview.show()")
         wait(f'''!Main.overview.animationInProgress && ext._manager._slots.get('blur').instance.backgrounds
-            ?.effects.every(([,e])=>e.underlay.length==={2*iterations})''')
+            ?.effects.every(([,e])=>e.underlay.reduce((n,p)=>n+(p.blurPasses??1),0)==={2*iterations})''')
         check(f'gaussian-iterations-{iterations}-wallpaper', f'''ext._manager._slots.get('blur').instance.backgrounds
             .effects.length>0 && ext._manager._slots.get('blur').instance.backgrounds.effects
-            .every(([,e])=>e.underlay.length==={2*iterations})''')
+            .every(([,e])=>e.underlay.reduce((n,p)=>n+(p.blurPasses??1),0)==={2*iterations})''')
         evaluate('Main.overview.hide()')
         wait('!Main.overview.visible')
     for iterations in [4, 8]:

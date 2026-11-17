@@ -7,6 +7,7 @@ import {Signals} from '../core/render/signals.js';
 import {ResourceScope} from '../core/utils.js';
 import {StyleLease} from '../core/style.js';
 import {SurfaceBinding, childSignal, findActor} from '../core/actors.js';
+import {EFFECT_KEYS} from '../core/appearanceKeys.js';
 
 export default class DocksModule {
     constructor({settings, logger}) {
@@ -46,11 +47,12 @@ export default class DocksModule {
                 return false;
             });
         });
+        const settingsSync = this.scope.debounce(0, () => this.sync());
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
             if (key === 'dock-invisible-overview')
                 this._animateOverview();
-            else if (key.startsWith('dock-') || key.startsWith('blur-') || key.startsWith('refraction-') || key === 'frosted-glass-enabled' || key === 'update-frequency')
-                this.sync();
+            else if (key.startsWith('dock-') || EFFECT_KEYS.has(key) || key === 'blur-render-area')
+                settingsSync();
         });
         this._scan();
         if (this.overviewActive && !Main.overview.visibleTarget)

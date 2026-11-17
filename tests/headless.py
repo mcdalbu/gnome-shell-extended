@@ -51,6 +51,12 @@ if os.environ.get('GSE_TEST_PERFORMANCE'):
     VARIANT += '-performance'
 if os.environ.get('GSE_TEST_DOCK_DRAG'):
     VARIANT += '-dock-drag'
+if os.environ.get('GSE_TEST_OPTIMIZATIONS'):
+    VARIANT += '-optimizations'
+    if os.environ.get('GSE_TEST_OPTIMIZATIONS_ONLY'):
+        VARIANT += '-only'
+if os.environ.get('GSE_TEST_LEGACY_WALLPAPER'):
+    VARIANT += '-legacy-wallpaper'
 
 
 
@@ -64,6 +70,12 @@ def stage():
             shutil.copytree(ROOT.parent / 'dash-to-dock-extended', dock,
                             ignore=shutil.ignore_patterns('.git', 'tests', 'validation', '*.zip'))
             subprocess.run(['glib-compile-schemas', '--strict', str(dock / 'schemas')], check=True)
+        if os.environ.get('GSE_TEST_LEGACY_WALLPAPER'):
+            shader = target / 'core/render/wallpaperBlur.js'
+            text = shader.read_text()
+            start = text.index('const supported = ')
+            end = text.index(';', start)
+            shader.write_text(text[:start] + 'const supported = false' + text[end:])
         if os.environ.get('GSE_TEST_NO_OPTIONAL'):
             backend = target / 'core/blurBackend.js'
             backend.write_text(backend.read_text().replace('gi://Blur', 'gi://GseMissingBlur'))
@@ -218,6 +230,14 @@ def test():
             for(let x=0;x<1440;x+=40) scene.add_child(new St.Widget({x,y:32,width:40,height:968,
                 style:`background-color:${x%80?'#7a4189':'#3b818a'};`}));
             Main.uiGroup.insert_child_above(scene,global.window_group);''')
+        if os.environ.get('GSE_TEST_OPTIMIZATIONS'):
+            from optimizations import run, windows
+            run(evaluate, wait, check, screenshot, results, ROOT)
+            windows(evaluate, wait, check, screenshot, results, ROOT)
+            if os.environ.get('GSE_TEST_OPTIMIZATIONS_ONLY'):
+                results['passed'] = True
+                print(json.dumps(results, indent=2))
+                return 0
         if os.environ.get('GSE_TEST_PANEL_EDGE'):
             from panel_edge import run as test_panel_edge
             test_panel_edge(evaluate, wait, check, screenshot, results)
@@ -507,6 +527,7 @@ def test():
             run(evaluate, wait, check, screenshot, results, ROOT, OUTPUT, VARIANT, display_env, log)
         # All foreground modules and resources must disappear on disable.
         evaluate('globalThis.oldManager=ext._manager;globalThis.oldPanelStyle=ext._manager._slots.get("panel").instance.style.original; ext.disable();')
+        wait('oldManager._cleanups.size===0')
         check('disable-slots-empty', 'oldManager._slots.size === 0 && oldManager._signals.length === 0')
         check('disable-panel-restored', 'Main.panel.get_style() === oldPanelStyle')
         check('disable-dock-restored', "dockBg.get_style() === 'background-color: rgb(30,30,35); border-radius: 20px;' && dockBg.opacity===255")
@@ -516,7 +537,8 @@ def test():
         for _ in range(10):
             evaluate('ext.enable();')
             wait('ext._manager._slots.get("blur")?.instance && ext._manager._slots.get("panel")?.instance')
-            evaluate('ext.disable();')
+            evaluate('globalThis.cycleManager=ext._manager;ext.disable();')
+            wait('cycleManager._cleanups.size===0')
         check('repeat-disable-clean', "!Main.uiGroup.get_children().some(a=>a.name==='gse-surface')")
         evaluate('dock.destroy();scene.destroy();')
         results['passed'] = True

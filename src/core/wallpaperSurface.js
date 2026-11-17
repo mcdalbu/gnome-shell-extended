@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import Clutter from 'gi://Clutter';
-import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import St from 'gi://St';
 import * as Background from 'resource:///org/gnome/shell/ui/background.js';
@@ -9,14 +7,12 @@ import {readAppearance} from './appearance.js';
 import {childSignal} from './actors.js';
 import {Signals} from './render/signals.js';
 import {BackdropGroup, BackdropWidget} from './render/backdropGroup.js';
-import {wallpaperBlurPasses} from './render/glassBlur.js';
-import {wallpaperRefraction} from './render/refraction.js';
+import {WallpaperCache, wallpaperFilters, updateWallpaperFilter, wallpaperStructure, wallpaperBytes} from './render/wallpaperBlur.js';
+import {wallpaperRefraction, setWallpaperStrength} from './render/refraction.js';
+import {forgetHidden, retainHidden} from './render/hiddenCache.js';
+import {capturePadding} from './render/blurPerformance.js';
 import {RoundedClip} from './render/roundedClip.js';
 import {syncFrostedGlass, clearFrostedGlass} from './render/frostedGlass.js';
-
-// Cache the OUTPUT of all shaders. ShaderEffect alone caches its input, and
-// would still execute its final fragment shader whenever the panel paints.
-const WallpaperCache = GObject.registerClass(class GseWallpaperCache extends Clutter.OffscreenEffect {});
 
 // Panel-only wallpaper source. No framebuffer copies, window damage tracking,
 // stage frame callbacks or full-redraw guard. BackgroundManager owns loading,
@@ -106,8 +102,14 @@ export class WallpaperSurface {
         const visible = this.box.mapped && this.anchor.mapped && width > 0 && height > 0 &&
             this.box.get_paint_opacity() > 0 && monitor && !Main.sessionMode.isLocked;
         this.group.visible = !!visible;
-        if (!visible)
+        if (!visible) {
+            retainHidden(this, wallpaperBytes([this.cache, this.finish, ...(this.filters ?? [])]), () => {
+                if (!this._destroyed && !this.group.visible)
+                    this._clearFilters();
+            });
             return;
+        }
+        forgetHidden(this);
         const parent = this.anchor.get_parent();
         if (!parent || parent !== this.group.get_parent()) {
             this.destroy();
@@ -121,8 +123,9 @@ export class WallpaperSurface {
             return;
         const appearance = readAppearance(this.settings);
         this._state.glassConfig = appearance;
-        const {blurRadius, strength, method, samples, iterations} = appearance;
-        const pad = Math.ceil(3 * blurRadius + strength + 4);
+        const {blurRadius, strength} = appearance;
+        const scale = this.source.get_resource_scale() || 1;
+        const pad = Math.ceil(capturePadding(appearance, scale) / scale) + 4;
         const sw = Math.min(monitor.width, Math.ceil(width + 2 * pad));
         const sh = Math.min(monitor.height, Math.ceil(height + 2 * pad));
         const sx = Math.max(0, Math.min(x - monitor.x - pad, monitor.width - sw));
@@ -152,29 +155,46 @@ export class WallpaperSurface {
         const corner = Math.max(...[0, 1, 2, 3].map(c => this.box.get_theme_node().get_border_radius(c)));
         this.clip.radius = Math.min(corner, width / 2, height / 2);
         const brightness = this.settings.get_double('blur-brightness');
-        const effectKey = JSON.stringify([blurRadius, strength, method, samples, iterations, brightness,
-            sw, sh, this.viewport.width, this.viewport.height]);
-        if (effectKey !== this._effectKey) {
-            this._effectKey = effectKey;
+        const filterKey = `${blurRadius > 0}:${wallpaperStructure(appearance)}`;
+        if (filterKey !== this._filterKey) {
+            this._filterKey = filterKey;
             for (const filter of this.filters ?? []) {
                 this.source.remove_effect(filter);
                 filter.run_dispose();
             }
-            if (this.finish) {
-                this.viewport.remove_effect(this.finish);
-                this.finish.run_dispose();
-            }
-            this.filters = blurRadius > 0 ? wallpaperBlurPasses(this.source, blurRadius, method, samples, iterations) : [];
+            this.filters = blurRadius > 0 ? wallpaperFilters(this.source, appearance) : [];
             for (const [i, filter] of this.filters.entries())
                 this.source.add_effect_with_name(`gse-static-blur-${i}`, filter);
+        }
+        for (const filter of this.filters)
+            updateWallpaperFilter(filter, this.source, appearance);
+        if (!this.finish) {
             this.finish = wallpaperRefraction(this.viewport, strength, brightness, true);
             this.viewport.add_effect_with_name('gse-static-finish', this.finish);
+        } else {
+            setWallpaperStrength(this.finish, this.viewport, strength, brightness);
         }
         if (appearance.frosted)
             syncFrostedGlass(this._state, (this.options.opacity?.() ?? 1) * 0.32);
         else
             clearFrostedGlass(this._state);
         this.setFade(this.options.fade?.() ?? 1);
+    }
+
+    _clearFilters() {
+        for (const filter of this.filters ?? []) {
+            this.source.remove_effect(filter);
+            filter.run_dispose();
+        }
+        this.filters = [];
+        this._filterKey = null;
+        // Disabling releases native offscreen storage; re-enable for resume.
+        for (const effect of [this.cache, this.finish]) {
+            if (effect) {
+                effect.enabled = false;
+                effect.enabled = true;
+            }
+        }
     }
 
     setFade(value) {
@@ -188,6 +208,7 @@ export class WallpaperSurface {
         if (this._destroyed)
             return;
         this._destroyed = true;
+        forgetHidden(this);
         if (this._later)
             global.compositor.get_laters().remove(this._later);
         this._later = 0;

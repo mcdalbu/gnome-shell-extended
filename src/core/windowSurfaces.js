@@ -15,6 +15,9 @@ import {boundsIntersect, windowDamage} from './render/windowDamage.js';
 import {BackdropWidget} from './render/backdropGroup.js';
 import {readAppearance} from './appearance.js';
 import {syncFrostedGlass, clearFrostedGlass} from './render/frostedGlass.js';
+import {coveredBy} from './render/occlusion.js';
+import {capturePadding} from './render/blurPerformance.js';
+import {retainHidden, forgetHidden, captureBytes} from './render/hiddenCache.js';
 
 const menuTypes = [Meta.WindowType.DROPDOWN_MENU, Meta.WindowType.POPUP_MENU,
     Meta.WindowType.MENU, Meta.WindowType.COMBO];
@@ -123,11 +126,13 @@ export class WindowSurfaces {
             if (this._economical || (this._radius === 0 && this._brightness === 100))
                 return;
             for (const state of this._visible)
-                state.guard.begin(state.blur, view);
+                if (!state.occluded)
+                    state.guard.begin(state.blur, view);
         });
         this._frames.connect(global.stage, 'before-paint', (_stage, view) => {
             for (const state of this._visible)
-                this._syncCapture(state, view);
+                if (!state.occluded)
+                    this._syncCapture(state, view);
         });
         this._frames.connect(global.stage, 'after-update', () => {
             for (const state of this._visible)
@@ -317,7 +322,7 @@ export class WindowSurfaces {
         if (!state.reveal) {
             state.reveal = new St.Adjustment({actor: Main.uiGroup, lower: 0, upper: 1, value: 0});
             state.signals.connect(state.reveal, 'notify::value', () => {
-                if (!this._visible.has(state))
+                if (!this._visible.has(state) || state.occluded)
                     return;
                 this._applyEffect(state);
                 this._syncCapture(state);
@@ -370,6 +375,7 @@ export class WindowSurfaces {
             if (state.bounds)
                 exposed.push(state.bounds);
         }
+        this._updateOcclusion();
         this._repaintAffected(exposed, repaint, restacked);
         this._syncDamageTracking();
     }
@@ -378,12 +384,15 @@ export class WindowSurfaces {
         if (this._economical)
             return;
         for (const state of this._visible) {
+            if (state.occluded)
+                continue;
             if (restacked || repaint?.has(state)) {
                 for (const capture of state.captures.values())
                     capture.effect.queue_repaint();
                 continue;
             }
-            const margin = Math.max(64, 3 * this._radius) * this._scale *
+            const margin = Math.max(0, ...[...state.captures.keys()].map(v =>
+                capturePadding(this._glassConfig, v.get_scale()) / v.get_scale())) *
                 Math.max(1, state.actor.scale_x, state.actor.scale_y);
             if (state.blurBounds && exposed.some(bounds => boundsIntersect(bounds, state.blurBounds, margin))) {
                 for (const capture of state.captures.values())
@@ -396,7 +405,10 @@ export class WindowSurfaces {
         // With selective blur, unrelated windows only supply the backdrop.
         // Subscribe to their changes while at least one backdrop is visible.
         if (!this._economical && this._visible.size)
-            this._stopWindowDamage ??= windowDamage.subscribe(bounds => this._repaintAffected(bounds));
+            this._stopWindowDamage ??= windowDamage.subscribe(bounds => {
+                this._updateOcclusion();
+                this._repaintAffected(bounds);
+            });
         else {
             this._stopWindowDamage?.();
             this._stopWindowDamage = null;
@@ -414,13 +426,109 @@ export class WindowSurfaces {
         return components !== undefined && components === Cogl.TextureComponents?.RGB;
     }
 
+    _opaqueRootBounds(actor, content) {
+        // A toplevel can have a small RGB root and outlying subsurfaces.
+        // Prove the root itself covers the frame; its union's bounds cannot
+        // establish opacity. Reject modifiers anywhere along that path.
+        if (!actor.mapped || actor.get_paint_opacity() !== 255 || actor.has_clip ||
+            actor.clip_to_allocation || actor.transform_set || actor.child_transform_set || actor.get_effects().length ||
+            actor.scale_x !== 1 || actor.scale_y !== 1 ||
+            actor.rotation_angle_x || actor.rotation_angle_y || actor.rotation_angle_z)
+            return null;
+        const children = actor.get_children();
+        // Mutter paints its root texture directly, without Clutter.Content.
+        // Accept that native leaf only when the entire path is unambiguous;
+        // multiple children (including subsurfaces) keep the normal renderer.
+        const nativeRoot = !children.length &&
+            GObject.type_name(actor.constructor.$gtype) === 'MetaSurfaceActorWayland';
+        if (actor.get_content() === content || nativeRoot) {
+            const [x, y] = actor.get_transformed_position();
+            const [width, height] = actor.get_transformed_size();
+            return {x, y, width, height};
+        }
+        return children.length === 1 ? this._opaqueRootBounds(children[0], content) : null;
+    }
+
+    _opaqueBounds(actor) {
+        const window = actor.meta_window;
+        if (!window || !actor.mapped || !actor.visible || window.minimized ||
+            !window.showing_on_its_workspace() || actor.get_paint_opacity() !== 255 ||
+            actor.has_clip || actor.get_effects().length || actor.scale_x !== 1 || actor.scale_y !== 1 ||
+            actor.rotation_angle_x || actor.rotation_angle_y || actor.rotation_angle_z ||
+            !this._isOpaque({actor, window}))
+            return null;
+        for (let parent = actor.get_parent(); parent && parent !== global.stage; parent = parent.get_parent()) {
+            if (parent.has_clip || parent.clip_to_allocation || parent.get_effects().length ||
+                parent.transform_set || parent.child_transform_set || parent.scale_x !== 1 || parent.scale_y !== 1 ||
+                parent.rotation_angle_x || parent.rotation_angle_y || parent.rotation_angle_z)
+                return null;
+        }
+        const frame = window.get_frame_rect(), buffer = window.get_buffer_rect();
+        const root = this._opaqueRootBounds(actor, actor.get_texture());
+        if (!root)
+            return null;
+        const [x, y] = actor.get_transformed_position();
+        const [width, height] = actor.get_transformed_size();
+        if (Math.abs(x-buffer.x) > .01 || Math.abs(y-buffer.y) > .01 ||
+            Math.abs(width-buffer.width) > .01 || Math.abs(height-buffer.height) > .01 ||
+            frame.x < buffer.x || frame.y < buffer.y ||
+            frame.x+frame.width > buffer.x+buffer.width || frame.y+frame.height > buffer.y+buffer.height)
+            return null;
+        // Fractional resource scales can offset the native root by a fraction
+        // of a logical pixel. Intersect and inset its true footprint instead
+        // of claiming that the whole frame is opaque, including edge sampling.
+        const left = Math.max(frame.x, root.x + 1);
+        const top = Math.max(frame.y, root.y + 1);
+        const right = Math.min(frame.x+frame.width, root.x+root.width - 1);
+        const bottom = Math.min(frame.y+frame.height, root.y+root.height - 1);
+        return right > left && bottom > top
+            ? {x:left,y:top,width:right-left,height:bottom-top} : null;
+    }
+
+    _updateOcclusion() {
+        if (!this._visible.size)
+            return;
+        const opaque = [];
+        for (const [actor, placement] of this._stack) {
+            const rect = this._opaqueBounds(actor);
+            if (rect)
+                opaque.push({rect, placement});
+        }
+        for (const state of this._visible) {
+            const placement = this._stack.get(state.actor);
+            const frame = state.window.get_frame_rect();
+            const occluded = !!placement && coveredBy(
+                {x:frame.x,y:frame.y,width:frame.width,height:frame.height},
+                opaque.filter(o => o.placement.group === placement.group && o.placement.index > placement.index).map(o => o.rect));
+            if (occluded === !!state.occluded)
+                continue;
+            state.occluded = occluded;
+            state.blur.visible = !occluded;
+            if (occluded) {
+                state.guard.end();
+                state.reveal?.remove_transition('value');
+                retainHidden(state, captureBytes(state.captures), () => this._releaseCaptures(state));
+            } else {
+                this._cancelRelease(state);
+            }
+            this._applyEffect(state);
+            if (!occluded)
+                this._syncCapture(state);
+            // Clear the last painted area or repaint a newly exposed source
+            // exactly once. No redraw is requested while coverage is stable.
+            global.stage.queue_redraw();
+        }
+    }
+
     _cancelRelease(state) {
+        forgetHidden(state);
         if (state.releaseId)
             GLib.Source.remove(state.releaseId);
         state.releaseId = 0;
     }
 
     _releaseCaptures(state) {
+        forgetHidden(state);
         for (const {actor, effect} of state.captures.values()) {
             actor.remove_effect(effect);
             effect.release?.();
@@ -433,6 +541,7 @@ export class WindowSurfaces {
     }
 
     _hide(state) {
+        state.occluded = false;
         this._visible.delete(state);
         state.revealFrom = undefined;
         state.reveal?.remove_transition('value');
@@ -442,14 +551,8 @@ export class WindowSurfaces {
         clearFrostedGlass(state);
         // Keep a short warm cache for Overview/workspace toggles, then release
         // textures for minimized or otherwise inactive windows.
-        if (state.captures.size && !state.releaseId && this._windows.has(state.actor)) {
-            state.releaseId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 5, () => {
-                state.releaseId = 0;
-                if (!this._visible.has(state))
-                    this._releaseCaptures(state);
-                return GLib.SOURCE_REMOVE;
-            });
-        }
+        if (state.captures.size && this._windows.has(state.actor))
+            retainHidden(state, captureBytes(state.captures), () => this._releaseCaptures(state));
         if (state.source) {
             state.actor.remove_effect(state.source);
             state.source.run_dispose();
@@ -468,6 +571,14 @@ export class WindowSurfaces {
             clearFrostedGlass(state);
         if (this._economical)
             return;
+        if (state.occluded) {
+            if (state.source) {
+                state.actor.remove_effect(state.source);
+                state.source.run_dispose();
+                state.source = null;
+            }
+            return;
+        }
         if (this._radius > 0 && !state.source) {
             state.source = new BlurSource();
             state.actor.add_effect(state.source);
@@ -482,7 +593,7 @@ export class WindowSurfaces {
     }
 
     _syncCapture(state, view = null) {
-        if (this._economical)
+        if (this._economical || state.occluded)
             return;
         state.glassConfig = this._glassConfig;
         const progress = state.reveal?.value ?? 1;
@@ -509,7 +620,8 @@ export class WindowSurfaces {
             (parent === global.window_group || parent === global.top_window_group);
         if (!enabled)
             return this._hide(state);
-        this._cancelRelease(state);
+        if (!state.occluded)
+            this._cancelRelease(state);
         const wasVisible = this._visible.has(state);
         const reveal = !wasVisible || state.revealFrom !== undefined;
         const revealFrom = wasVisible ? state.revealFrom : 0;
@@ -517,6 +629,7 @@ export class WindowSurfaces {
         if (!state.blur) {
             state.blur = new BackdropWidget({name: 'gse-window-blur', reactive: false,
                 style: 'background-color: transparent;'});
+            state.blur._gseCaptures = state.captures;
             state.clip = new RoundedClip();
             state.blur.add_effect_with_name('gse-window-clip', state.clip);
             parent.insert_child_below(state.blur, actor);
@@ -545,7 +658,7 @@ export class WindowSurfaces {
             state.blur.opacity = actor.opacity;
             state.clip.radius = cornerRadius;
         }
-        state.blur.show();
+        state.blur.visible = !state.occluded;
         this._visible.add(state);
         if (reveal)
             this._reveal(state, wasVisible, revealFrom);

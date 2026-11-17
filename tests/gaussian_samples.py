@@ -44,7 +44,7 @@ def run(evaluate, wait, check, screenshot, results):
         images.append(image)
         evaluate("cfg.set_boolean('blur-overview',true);Main.overview.show()")
         wait(f'''ext._manager._slots.get('blur').instance.backgrounds?.effects.length>0 && !Main.overview.animationInProgress &&
-            ext._manager._slots.get('blur').instance.backgrounds.effects.every(([,e])=>e.underlay.length===2*cfg.get_int('blur-iterations') && e.underlay.every(p=>p.blurSamples==={samples}))''')
+            ext._manager._slots.get('blur').instance.backgrounds.effects.every(([,e])=>e.underlay.reduce((n,p)=>n+(p.blurPasses??1),0)===2*cfg.get_int('blur-iterations') && e.underlay.every(p=>p.blurSamples==={samples}))''')
         screenshot(f'samples-overview-{samples}')
         evaluate('Main.overview.hide()')
         wait('!Main.overview.visible')

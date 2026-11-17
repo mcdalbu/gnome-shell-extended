@@ -9,6 +9,7 @@ import {ResourceScope} from '../core/utils.js';
 import {StyleLease} from '../core/style.js';
 import {SurfaceBinding, childSignal} from '../core/actors.js';
 import {PanelGap} from '../core/panelGap.js';
+import {EFFECT_KEYS} from '../core/appearanceKeys.js';
 
 export default class PanelModule {
     constructor({settings, logger}) {
@@ -55,9 +56,10 @@ export default class PanelModule {
                     this.queue();
                 });
         }
+        const settingsSync = this.scope.debounce(0, () => this.sync());
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
-            if (key.startsWith('panel-') || key.startsWith('blur-') || key.startsWith('refraction-') || key === 'frosted-glass-enabled' || key === 'update-frequency')
-                this.sync();
+            if (key.startsWith('panel-') || EFFECT_KEYS.has(key) || ['blur-enabled', 'blur-render-area'].includes(key))
+                settingsSync();
         });
         this.signals.connect(St.ThemeContext.get_for_stage(global.stage), 'changed', () => this.sync(true));
         this.signals.connect(Main.layoutManager, 'monitors-changed', this.queue);

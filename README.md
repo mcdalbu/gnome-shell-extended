@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão de teste **1.8.0-beta.2**, baseada na estável **1.7.0**.
+preferências GTK4/Libadwaita. Versão de teste **1.8.0-beta.3**, baseada na estável **1.7.0**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -34,6 +34,21 @@ GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e o
 cenários efetivamente testados. As medições são de cenas específicas; não há
 garantia de ganho percentual de CPU/GPU/RAM nem certificação em todas as versões.
 
+## Revisão de desempenho — 1.8.0-beta.3
+
+- Superfícies ocultas deixam de acompanhar danos e fases de frame após a limpeza final. Sinais de layout/clip retomam o blur ao reaparecer.
+- Janelas inteiramente cobertas suspendem capturas quando uma superfície Wayland RGB, sem efeitos ou recortes, comprova cobertura opaca. Formato RGBA, transforms ou cobertura desconhecida preservam o caminho normal.
+- Wallpaper usa filtros em resolução reduzida e cache da saída final quando as APIs de paint nodes estão disponíveis. Overview pode reutilizar sua árvore por até cinco segundos; versões sem essas APIs mantêm os filtros anteriores.
+- Pirâmides são reutilizadas por dimensões/redução, brilho atualiza apenas o acabamento e uniforms estáveis ficam em cache. Alterações de preferências são agrupadas e encaminhadas aos consumidores pertinentes.
+- Capturas transitórias de screenshot expiram após 500 ms. Caches ocultos compartilham um orçamento estimado de 128 MiB e expiram em cinco segundos; liberar armazenamento não agenda um loop de pintura.
+- Integrações GTK/Ptyxis/Configurações executam em processos auxiliares serializados, com snapshots agrupados, backups e ETags preservados. Escrita de sombras passa a ser assíncrona.
+
+A resolução também atende o wallpaper no renderer novo; o limite de atualização
+50%/25% continua exclusivo dos fundos dinâmicos. A proteção de arraste da beta.2
+permanece ativa. O recorte às partes transparentes internas de outro aplicativo
+continua dependendo de informação do cliente que o Shell não expõe; não se
+estima essa área a partir de pixels ou do formato RGBA.
+
 ## Movimento de janelas perto do dock — 1.8.0-beta.2
 
 O modo **Elementos** usa temporariamente o redesenho compatível durante um
@@ -55,8 +70,9 @@ Em **Blur → Recursos**, os novos controles são independentes:
 - **Atualização do fundo dinâmico**: **100% (full rate)**, **50% (half rate)** e **25% (quarter rate)** da frequência de cada monitor. Em 60 Hz, são limites de 60, 30 e 15 atualizações por segundo; em 144 Hz, 144, 72 e 36. A interface continua na frequência normal. O compositor ou o redesenho regional podem produzir menos atualizações que o limite.
 
 As opções atendem Box, Fast Gaussian e Kawase em menus, barra dinâmica,
-docks e fundos de janelas. A barra estática, o Overview e o bloqueio usam
-outra fonte de wallpaper e mantêm sua resolução e política de cache.
+docks e fundos de janelas. Desde a beta.3, a resolução também atende a barra
+estática, o Overview e o bloqueio no renderer de wallpaper com paint nodes.
+Essas fontes continuam usando sua política de cache, sem o limitador de cadência.
 Os padrões continuam **Automática** e **100%**.
 
 Entre atualizações, a textura preparada é reaproveitada. Um único refresh

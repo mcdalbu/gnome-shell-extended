@@ -4,7 +4,8 @@ import {readAppearance} from './appearance.js';
 import St from 'gi://St';
 import * as Background from 'resource:///org/gnome/shell/ui/background.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import {wallpaperBlurPasses, updateWallpaperBlur} from './render/glassBlur.js';
+import {WallpaperCache, wallpaperFilters, updateWallpaperFilter, wallpaperStructure, wallpaperBytes} from './render/wallpaperBlur.js';
+import {forgetHidden, retainHidden} from './render/hiddenCache.js';
 import {wallpaperRefraction, setWallpaperStrength} from './render/refraction.js';
 import {Signals} from './render/signals.js';
 import {childSignal} from './actors.js';
@@ -24,7 +25,7 @@ export class Backgrounds {
 
     enable() {
         this.signals.connect(Main.overview, 'showing', () => this._overview());
-        this.signals.connect(Main.overview, 'hidden', () => this._clearOverview());
+        this.signals.connect(Main.overview, 'hidden', () => this._hideOverview());
         this.signals.connect(Main.sessionMode, 'updated', () => this._locks());
         this.signals.connect(Main.layoutManager, 'monitors-changed', () => {
             this._clearOverview();
@@ -39,7 +40,7 @@ export class Backgrounds {
 
     _update(effect, actor) {
         for (const filter of effect.underlay ?? [])
-            updateWallpaperBlur(filter, actor, this.appearance.blurRadius);
+            updateWallpaperFilter(filter, actor, this.appearance);
         setWallpaperStrength(effect, actor, this.appearance.strength,
             this.settings.get_double('blur-brightness'));
     }
@@ -48,44 +49,63 @@ export class Backgrounds {
         const effect = wallpaperRefraction(actor, this.appearance.strength,
             this.settings.get_double('blur-brightness'));
         effect.underlay = this.appearance.blurRadius > 0
-            ? wallpaperBlurPasses(actor, this.appearance.blurRadius, this.appearance.method,
-                this.appearance.samples, this.appearance.iterations) : [];
+            ? wallpaperFilters(actor, this.appearance) : [];
         return effect;
     }
 
     _overview() {
-        if (!this.settings.get_boolean('blur-overview') || this.group ||
+        if (!this.settings.get_boolean('blur-overview') ||
             (!this.appearance.capture && !this.appearance.frosted))
             return;
         const adjustment = Main.overview._overview?.controls?._stateAdjustment;
         if (!adjustment)
             return;
-        this.group = new Meta.BackgroundGroup({name: 'gse-overview-wallpaper'});
-        Main.layoutManager.overviewGroup.insert_child_at_index(this.group, 0);
-        for (const [monitorIndex, monitor] of Main.layoutManager.monitors.entries()) {
-            const widget = new St.Widget({x: monitor.x, y: monitor.y,
-                width: monitor.width, height: monitor.height, reactive: false});
-            this.group.add_child(widget);
-            if (this.appearance.capture) {
-                const effect = this._effect(widget);
-                widget.add_effect_with_name('gse-wallpaper-blur', effect);
-                for (const [index, filter] of (effect.underlay ?? []).entries())
-                    widget.add_effect_with_name(`gse-glass-underlay-blur-${index}`, filter);
-                this.effects.push([widget, effect]);
-            }
-            this.managers.push(new Background.BackgroundManager({container: widget, monitorIndex, controlPosition: false}));
-            if (this.appearance.frosted) {
-                const state = {blur: widget};
-                syncFrostedGlass(state, this.settings.get_double('surface-opacity'));
-                this.glasses.push(state);
+        forgetHidden(this);
+        if (!this.group) {
+            this.group = new Meta.BackgroundGroup({name: 'gse-overview-wallpaper'});
+            Main.layoutManager.overviewGroup.insert_child_at_index(this.group, 0);
+            for (const [monitorIndex, monitor] of Main.layoutManager.monitors.entries()) {
+                const widget = new St.Widget({x: monitor.x, y: monitor.y,
+                    width: monitor.width, height: monitor.height, reactive: false});
+                this.group.add_child(widget);
+                if (this.appearance.capture) {
+                    const effect = this._effect(widget);
+                    effect.outputCache = new WallpaperCache();
+                    widget.add_effect_with_name('gse-wallpaper-cache', effect.outputCache);
+                    widget.add_effect_with_name('gse-wallpaper-blur', effect);
+                    for (const [index, filter] of (effect.underlay ?? []).entries())
+                        widget.add_effect_with_name(`gse-glass-underlay-blur-${index}`, filter);
+                    this.effects.push([widget, effect]);
+                }
+                this.managers.push(new Background.BackgroundManager({container: widget, monitorIndex, controlPosition: false}));
+                if (this.appearance.frosted) {
+                    const state = {blur: widget};
+                    syncFrostedGlass(state, this.settings.get_double('surface-opacity'));
+                    this.glasses.push(state);
+                }
             }
         }
+        this.group.show();
+        this.overviewSignals.clear();
         const fade = () => { this.group.opacity = Math.round(255 * Math.min(1, Math.max(0, adjustment.value))); };
         this.overviewSignals.connect(adjustment, 'notify::value', fade);
         fade();
     }
 
+    _hideOverview() {
+        this.overviewSignals.clear();
+        if (!this.group)
+            return;
+        this.group.hide();
+        // Include the actor input, finishing pass, output cache and pyramid.
+        // Conservative accounting is intentional: hidden caches share a cap.
+        const bytes = this.effects.reduce((sum, [, effect]) => sum +
+            wallpaperBytes([effect, effect.outputCache, ...effect.underlay]), 0);
+        retainHidden(this, bytes, () => this._clearOverview());
+    }
+
     _clearOverview() {
+        forgetHidden(this);
         this.overviewSignals.clear();
         for (const manager of this.managers)
             manager.destroy();
@@ -135,6 +155,8 @@ export class Backgrounds {
             signals.connect(actor, 'destroy', () => this._removeLock(actor, true));
             native.enabled = false;
             if (effect) {
+                effect.outputCache = new WallpaperCache();
+                actor.add_effect_with_name('gse-lock-cache', effect.outputCache);
                 actor.add_effect_with_name('gse-lock-blur', effect);
                 for (const [index, filter] of (effect.underlay ?? []).entries())
                     actor.add_effect_with_name(`gse-glass-underlay-blur-${index}`, filter);
@@ -168,6 +190,11 @@ export class Backgrounds {
     }
 
     _removeEffect(actor, effect) {
+        if (effect.outputCache) {
+            actor.remove_effect(effect.outputCache);
+            effect.outputCache.run_dispose();
+            effect.outputCache = null;
+        }
         for (const filter of effect.underlay ?? []) {
             actor.remove_effect(filter);
             filter.run_dispose();
@@ -179,8 +206,8 @@ export class Backgrounds {
 
     sync() {
         this.appearance = readAppearance(this.settings);
-        const {capture, frosted, blurRadius, method, samples, iterations} = this.appearance;
-        const key = `${capture}:${frosted}:${blurRadius > 0}:${method}:${samples}:${iterations}`;
+        const {capture, frosted, blurRadius} = this.appearance;
+        const key = `${capture}:${frosted}:${blurRadius > 0}:${wallpaperStructure(this.appearance)}`;
         if (key !== this._appearanceKey) {
             this._appearanceKey = key;
             this._clearOverview();

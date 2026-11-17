@@ -6,6 +6,7 @@ validate:
 
 test: validate
 	gjs -m tests/lifecycle.js
+	gjs -m tests/renderCaches.js
 	$(PYTHON) tools.py test-settings
 
 build: test

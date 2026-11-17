@@ -1,24 +1,28 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import Gio from 'gi://Gio';
 import St from 'gi://St';
+import GLib from 'gi://GLib';
 import {Signals} from '../core/render/signals.js';
+import {ResourceScope} from '../core/utils.js';
 
 export default class ShadowsModule {
     constructor({settings, logger}) {
         Object.assign(this, {settings, logger});
         this.signals = new Signals();
+        this.scope = new ResourceScope();
+        this.pending = Promise.resolve();
     }
 
     enable() {
         this.context = St.ThemeContext.get_for_stage(global.stage);
+        this.active = true;
+        const sync = this.scope.debounce(30, () => this.sync());
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
             if (key.startsWith('shadow-'))
-                this.sync();
+                sync();
         });
         this.signals.connect(this.context, 'changed', () => this.sync());
-        const [file, stream] = Gio.File.new_tmp('gse-icon-shadows-XXXXXX.css');
-        this.file = file;
-        stream.close(null);
+        this.file = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_tmp_dir(), `gse-icon-shadows-${GLib.uuid_string_random()}.css`]));
         this.sync();
     }
 
@@ -28,7 +32,7 @@ export default class ShadowsModule {
     }
 
     sync() {
-        if (this.updating)
+        if (this.updating || !this.active)
             return;
         const theme = this.context.get_theme();
         const shadow = `${this.settings.get_int('shadow-offset-x')}px ${this.settings.get_int('shadow-offset-y')}px ` +
@@ -43,27 +47,52 @@ export default class ShadowsModule {
         const css = rules.join('\n');
         if (this.theme === theme && this.css === css)
             return;
-        this.updating = true;
+        this.desired = {theme, css};
+        if (!this.writing)
+            this.pending = this._write();
+    }
+
+    async _write() {
+        this.writing = true;
         try {
-            this._unload();
-            this.file.replace_contents(css, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
-            if (css)
-                theme.load_stylesheet(this.file);
-            this.css = css;
-            this.theme = theme;
-        } finally {
-            this.updating = false;
-        }
+            while (this.active && this.desired) {
+                const {theme, css} = this.desired;
+                this.desired = null;
+                await new Promise((resolve, reject) => this.file.replace_contents_bytes_async(
+                    new GLib.Bytes(new TextEncoder().encode(css)), null, false, Gio.FileCreateFlags.PRIVATE, null,
+                    (file, result) => { try { file.replace_contents_finish(result); resolve(); } catch (error) { reject(error); } }));
+                if (!this.active || this.desired)
+                    continue;
+                this.updating = true;
+                try {
+                    this._unload();
+                    if (css)
+                        theme.load_stylesheet(this.file);
+                    this.css = css;
+                    this.theme = theme;
+                } finally { this.updating = false; }
+            }
+        } catch (error) {
+            this.logger.error('Shadow stylesheet', error);
+        } finally { this.writing = false; }
     }
 
     disable() {
+        this.active = false;
+        this.desired = null;
         this.signals.clear();
+        this.scope.dispose();
         if (this.file) {
             this._unload();
-            this.file.delete(null);
         }
-        this.file = null;
-        this.theme = null;
-        this.context = null;
+        const file = this.file;
+        return this.pending.then(() => new Promise(resolve => {
+            if (!file) { resolve(); return; }
+            file.delete_async(GLib.PRIORITY_DEFAULT, null, (source, result) => {
+                try { source.delete_finish(result); }
+                catch (error) { if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND)) this.logger.error('Shadow cleanup', error); }
+                resolve();
+            });
+        }));
     }
 }

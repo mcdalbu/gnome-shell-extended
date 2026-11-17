@@ -3,9 +3,8 @@ import Gio from 'gi://Gio';
 import {readAppearance} from '../core/appearance.js';
 import {Signals} from '../core/render/signals.js';
 import {ResourceScope} from '../core/utils.js';
-import {gtkCss, writeGtkStyle} from '../core/gtkStyle.js';
-import {syncPtyxisOpacity} from '../core/ptyxis.js';
-import {syncSettingsLauncher, clearSettingsLauncherCache} from '../core/settingsLauncher.js';
+import {integrationJob} from '../core/integrationJobs.js';
+import {EFFECT_KEYS, WINDOW_KEYS} from '../core/appearanceKeys.js';
 
 export default class OpacityModule {
     constructor({settings, logger}) {
@@ -20,25 +19,35 @@ export default class OpacityModule {
         if (root?.has_key('profile-uuids') && root.has_key('default-profile-uuid')) {
             this.ptyxis = new Gio.Settings({settings_schema: root});
             for (const key of ['profile-uuids', 'default-profile-uuid'])
-                this.signals.connect(this.ptyxis, `changed::${key}`, () => this.sync());
+                this.signals.connect(this.ptyxis, `changed::${key}`, () => this.sync(['ptyxis']));
         }
-        const sync = this.scope.debounce(120, () => this.sync());
+        const parts = new Set();
+        const sync = this.scope.debounce(120, () => { this.sync([...parts]); parts.clear(); });
+        const windowSync = this.scope.debounce(0, () => {
+            const effectOnly = !this._windowSelectionDirty;
+            this._windowSelectionDirty = false;
+            this._syncWindowBlur(effectOnly);
+        });
         this.signals.connect(this.settings, 'changed', (_settings, key) => {
             if (key === 'opacity-gtk-settings-sidebar')
-                this._launcher();
-            if (key.startsWith('opacity-') || key === 'gtk-background-opacity')
+                parts.add('launcher');
+            if (key.startsWith('opacity-gtk-') || key === 'gtk-background-opacity')
+                parts.add('gtk');
+            if (key === 'opacity-ptyxis' || key === 'gtk-background-opacity')
+                parts.add('ptyxis');
+            if (parts.size)
                 sync();
-            if (key.startsWith('opacity-') || key.startsWith('blur-') || key.startsWith('refraction-') || key === 'frosted-glass-enabled' ||
-                ['windows-blur', 'update-frequency', 'gtk-background-opacity'].includes(key))
-                this._syncWindowBlur();
+            if (WINDOW_KEYS.has(key) || EFFECT_KEYS.has(key)) {
+                this._windowSelectionDirty ||= WINDOW_KEYS.has(key);
+                windowSync();
+            }
         });
         this.active = true;
-        this._launcher();
         this._syncWindowBlur();
         this.sync();
     }
 
-    _syncWindowBlur() {
+    _syncWindowBlur(effectOnly = false) {
         const appearance = readAppearance(this.settings);
         const wanted = this.active && this.settings.get_boolean('windows-blur') &&
             this.settings.get_double('gtk-background-opacity') < 1 &&
@@ -55,7 +64,7 @@ export default class OpacityModule {
         if (!wanted)
             return;
         if (this.windowBlur) {
-            this.windowBlur.sync();
+            this.windowBlur.sync(effectOnly);
             return;
         }
         if (this._windowLoading && this._windowPreference === preference)
@@ -81,25 +90,12 @@ export default class OpacityModule {
             });
     }
 
-    _launcher(enabled = true) {
-        try {
-            syncSettingsLauncher(enabled ? this.settings : {get_boolean: () => false});
-        } catch (error) {
-            this.logger.error('Settings application integration', error);
-        }
-    }
-
-    sync() {
-        try {
-            writeGtkStyle(gtkCss(this.settings));
-        } catch (error) {
-            this.logger.error('GTK style update', error);
-        }
-        try {
-            syncPtyxisOpacity(this.settings, this.ptyxis);
-        } catch (error) {
-            this.logger.error('Ptyxis profile update', error);
-        }
+    sync(parts = ['gtk', 'ptyxis', 'launcher'], restore = false) {
+        const values = Object.fromEntries(['opacity-gtk-files-sidebar', 'opacity-gtk-settings-sidebar',
+            'opacity-gtk-menus', 'opacity-ptyxis'].map(key => [key, !restore && this.settings.get_boolean(key)]));
+        values['gtk-background-opacity'] = this.settings.get_double('gtk-background-opacity');
+        this.pending = integrationJob('integrations', {parts, values}, error => this.logger.error('Application integration', error));
+        return this.pending;
     }
 
     disable() {
@@ -109,18 +105,7 @@ export default class OpacityModule {
         this.windowBlur = null;
         this.signals.clear();
         this.scope.dispose();
-        this._launcher(false);
-        clearSettingsLauncherCache();
-        try {
-            writeGtkStyle('');
-        } catch (error) {
-            this.logger.error('GTK style restore', error);
-        }
-        try {
-            syncPtyxisOpacity({get_boolean: () => false}, this.ptyxis);
-        } catch (error) {
-            this.logger.error('Ptyxis profile restore', error);
-        }
         this.ptyxis = null;
+        return this.sync(['gtk', 'ptyxis', 'launcher'], true);
     }
 }

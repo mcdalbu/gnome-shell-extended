@@ -77,14 +77,14 @@ def run(evaluate, wait, check, screenshot, results):
     wait('!Main.overview.animationInProgress')
     check('kawase-wallpaper-three-passes', '''ext._manager._slots.get('blur').instance.backgrounds.effects.length>0 &&
         ext._manager._slots.get('blur').instance.backgrounds.effects.every(([,e])=>
-            e.underlay.length===3 && e.underlay.every(p=>p.blurMethod==='kawase' && p.enabled))''')
+            e.underlay.reduce((n,p)=>n+(p.blurPasses??1),0)===3 && e.underlay.every(p=>p.blurMethod==='kawase' && p.enabled))''')
     screenshot('kawase-overview')
     iteration_widths = {}
     for iterations in [1, 2, 3, 8]:
         # Change while Overview is open: its cached chain must be rebuilt too.
         evaluate(f"cfg.set_int('blur-kawase-iterations',{iterations})")
         wait(f'''ext._manager._slots.get('blur').instance.backgrounds.effects.length>0 &&
-            ext._manager._slots.get('blur').instance.backgrounds.effects.every(([,e])=>e.underlay.length==={iterations})''')
+            ext._manager._slots.get('blur').instance.backgrounds.effects.every(([,e])=>e.underlay.reduce((n,p)=>n+(p.blurPasses??1),0)==={iterations})''')
         evaluate('Main.overview.hide()')
         wait('!Main.overview.visible')
         evaluate("cfg.set_int('blur-radius',64);kSurface.update()")

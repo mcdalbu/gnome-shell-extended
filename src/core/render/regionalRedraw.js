@@ -18,6 +18,16 @@ export const supported = typeof global.stage.queue_redraw_with_clip === 'functio
     typeof Mtk.Region.prototype.contains_rectangle === 'function' &&
     GObject.signal_lookup('paint-view', Clutter.Stage) > 0;
 
+// Surfaces already own the capture records; avoid repeated named-effect
+// lookups while clustering overlapping source margins.
+function capturesFor(actor) {
+    if (actor._gseCaptures)
+        return actor._gseCaptures.values();
+    return actor.get_children().map(child => ({actor: child,
+        effect: child.get_effect('gse-backdrop-blur'),
+        view: child.get_effect('gse-capture-view')?.view}));
+}
+
 function captureRectangle(child, view) {
     const layout = view.layout;
     const [x, y] = child.get_transformed_position();
@@ -82,9 +92,9 @@ function redrawRequests() {
     for (const [owner, actor] of sources) {
         if (!actor.mapped || actor.get_paint_opacity() === 0)
             continue;
-        for (const child of actor.get_children()) {
-            const view = child.get_effect('gse-capture-view')?.view;
-            const effect = child.get_effect('gse-backdrop-blur');
+        for (const capture of capturesFor(actor)) {
+            const {actor: child, effect} = capture;
+            const view = capture.view ?? child.get_effect('gse-capture-view')?.view;
             if (!child.visible || !view || !effect?.isRefraction)
                 continue;
             const rect = captureRectangle(child, view);
@@ -132,8 +142,7 @@ function paint(stage, view, original) {
         for (const [owner, state] of owners) {
             if (view !== state.view)
                 continue;
-            for (const child of state.actor.get_children()) {
-                const effect = child.get_effect('gse-backdrop-blur');
+            for (const {actor: child, effect} of capturesFor(state.actor)) {
                 if (!child.visible || !effect?.isRefraction)
                     continue;
                 const rect = captureRectangle(child, view);

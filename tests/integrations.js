@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import {integrationJob, integrationsSettled} from '../src/core/integrationJobs.js';
 import {StyleLease} from '../src/core/style.js';
 import {replaceBlock, writeGtkStyle} from '../src/core/gtkStyle.js';
 import {syncPtyxisOpacity} from '../src/core/ptyxis.js';
@@ -81,3 +82,22 @@ if (rootSchema && profileSchema?.has_key('opacity')) {
     console.log('SKIP: Ptyxis schemas absent.');
 }
 console.log('PASS: style leases, GTK markers and file roundtrip.');
+
+// Real subprocess transactions: a queued restore must follow an in-flight
+// apply, and merged pending parts must use the newest complete snapshot.
+const errors = [];
+const job = (parts, enabled, alpha=.4) => ({parts,values:{
+    'opacity-gtk-files-sidebar':enabled,'opacity-gtk-settings-sidebar':false,
+    'opacity-gtk-menus':enabled,'opacity-ptyxis':false,'gtk-background-opacity':alpha}});
+for (let i=0;i<20;i++)
+    integrationJob('test',job(['gtk'],true,.2+i*.01),error=>errors.push(error.message));
+integrationJob('test',job(['gtk','launcher'],false),error=>errors.push(error.message));
+await integrationsSettled();
+assert(errors.length===0,errors.join('\n'));
+assert(!new TextDecoder().decode(GLib.file_get_contents(`${directory}/gtk.css`)[1]).includes('BEGIN Gnome Shell Extended'),
+    'Serialized final restore wins over queued applies');
+integrationJob('test',job(['gtk'],true,.37),error=>errors.push(error.message));
+await integrationsSettled();
+assert(new TextDecoder().decode(GLib.file_get_contents(`${directory}/gtk.css`)[1]).includes('0.37'), 'Latest snapshot applies');
+writeGtkStyle('');
+console.log('PASS: asynchronous integration coalescing and serialized final restoration.');

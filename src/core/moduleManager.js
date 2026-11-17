@@ -9,6 +9,7 @@ export class ModuleManager {
         this._slots = new Map();
         this._signals = [];
         this._active = false;
+        this._cleanups = new Set();
     }
 
     enable() {
@@ -53,7 +54,7 @@ export class ModuleManager {
                 logger: this._logger,
             });
             slot.instance = instance;
-            // Module enable/disable are synchronous; async imports are owned here.
+            // Actors are enabled synchronously; imports and restoration jobs are tracked.
             instance.enable();
             this._logger.debug?.(`Enabled module ${name}`);
         }).catch(error => {
@@ -70,7 +71,12 @@ export class ModuleManager {
 
     _dispose(name, instance) {
         try {
-            instance.disable();
+            const cleanup = instance.disable();
+            if (cleanup?.then) {
+                const pending = Promise.resolve(cleanup).catch(error => this._logger.error(`Module ${name} cleanup failed`, error))
+                    .finally(() => this._cleanups.delete(pending));
+                this._cleanups.add(pending);
+            }
             this._logger.debug?.(`Disabled module ${name}`);
         } catch (error) {
             this._logger.error(`Module ${name} cleanup failed`, error);
@@ -79,7 +85,7 @@ export class ModuleManager {
 
     // Useful for lifecycle tests; the Shell never blocks waiting for an import.
     async settled() {
-        await Promise.all([...this._slots.values()].map(slot => slot.pending));
+        await Promise.all([...this._slots.values()].map(slot => slot.pending).concat([...this._cleanups]));
     }
 
     setSuspended(suspended) {

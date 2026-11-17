@@ -89,6 +89,23 @@ await manager.settled();
 manager.disable();
 assert(enabled === 3 && disabled === 3, 'Manager must support a new lifecycle');
 
+// Disable detaches synchronously while restoration finishes asynchronously.
+let finishCleanup;
+const asynchronous = new ModuleManager(new Settings({'panel-enabled':true}), {
+    panel: () => ({default:class {
+        enable() {}
+        disable() { return new Promise(done=>{finishCleanup=done}); }
+    }}),
+},logger);
+asynchronous.enable();await asynchronous.settled();asynchronous.disable();
+assert(asynchronous._slots.size===0 && asynchronous._cleanups.size===1,'Track detached restoration');
+let cleanupSettled=false;
+const cleanupWait=asynchronous.settled().then(()=>{cleanupSettled=true});
+await Promise.resolve();
+assert(!cleanupSettled,'Settled must wait for asynchronous restoration');
+finishCleanup();await cleanupWait;
+assert(asynchronous._cleanups.size===0,'Completed restoration must release its references');
+
 // Import finishes after disable: it must not instantiate or touch the Shell.
 let resolve;
 let constructed = 0;

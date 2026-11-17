@@ -1,4 +1,69 @@
-# Validação — Gnome Shell Extended 1.8.0-beta.2
+# Validação — Gnome Shell Extended 1.8.0-beta.3
+
+## Revisão de desempenho — 2026-11-16
+
+Os dez pontos principais da revisão da beta.2 foram implementados. São 46
+módulos JavaScript, 61 chaves e 56 controles; as opções de atualização continuam
+100%, 50% e 25%. Testes de lifecycle incluem restauração assíncrona, e os testes
+de integração exercitam uma fila real de subprocessos com alterações agrupadas
+e restauração final. O orçamento compartilhado de caches ocultos e o cache de
+uniforms têm regressões próprias.
+
+As sessões privadas usam GNOME Shell/Mutter 51.1 e Intel xe, com monitor único
+ou dois monitores a 125% e 150%. O formato RGB é exercitado por um cliente
+Wayland XRGB real; uma janela GTK RGBA visualmente opaca também é testada para
+garantir o fallback conservador.
+
+| Verificação | Resultado observado |
+| --- | --- |
+| Posição/tamanho, superfície de teste com um monitor | De nove para duas consultas por frame de cada getter |
+| Uniforms do pipeline aquecido | Zero buscas novas, contra oito por composição na sonda anterior |
+| Raios 24→25→26→27 | Mesma pirâmide quando contexto/dimensões/redução permanecem iguais; mudança de identidade de contexto reconstrói o buffer |
+| Superfície mapeada com clip vazio | Sem consumidor de danos nem assinaturas de fases após o frame final; retoma ao abrir |
+| Pai reaparece mudando somente opacidade | Retoma as assinaturas e a captura; inclui a ferramenta de screenshot |
+| Janela sob cobertura XRGB comprovada | Zero novas capturas durante animação externa; retoma ao ser exposta |
+| Cobertura RGBA desconhecida | Mantém a renderização normal |
+| Mudança de brilho/calendário | Brilho usa `sync(true)` sem varrer janelas; calendário não chama o controlador de janelas |
+| Screenshot | Armazenamento transitório liberado após 500 ms, sem polling |
+| Wallpaper | Fonte atual, blur de padrão listrado e saída em cache; brilho mantém filtros e geometria; reduzir iterações libera passagens antigas |
+| Overview | Árvore aquecida reutilizada ao reabrir; liberada em cinco segundos, sob orçamento global |
+| Alvos do Overview, dois monitores | Estimativa RGBA8 de 207,1 MiB na cadeia antiga para 79,5 MiB no renderer novo, com as dimensões observadas |
+| Repouso | Zero frames adicionais nas janelas finais dos ensaios completos |
+
+A estimativa de armazenamento soma dimensões dos alvos, sem overhead do driver;
+não representa memória residente medida, porcentagem de GPU ou watts. As oito
+passagens Gaussian do wallpaper passam a usar alvos reduzidos, com uma textura
+por passagem agendada para evitar ciclos nos journals Cogl. O caminho dinâmico
+continua usando dois alvos em ping-pong. A nova cadeia acrescenta redução e
+cache final, portanto o ganho não deve ser descrito como redução do número
+absoluto de draw calls em toda configuração.
+
+A matriz fracionária aprovou filtros, cadência 100/50/25%, fontes sobrepostas,
+retomada, captura de tela, papel de parede, integração GTK/Ptyxis/Configurações,
+arraste nativo junto ao dock real e dez ciclos de ativação/desativação. A matriz
+de regressões também aprovou pixels, clips, revelação de janelas e flicker com
+blur. Os limites de cobertura preservam recortes e transforms desconhecidos;
+janelas com múltiplas superfícies ou alpha desconhecido mantêm o renderer ativo.
+
+O recorte às regiões transparentes internas de widgets de outro processo não
+foi inferido: falta uma API de informação confiável do cliente. As versões do
+Shell 45–50 não foram executadas nesta máquina; o fallback da cadeia de
+wallpaper é exercitado desativando apenas a detecção de paint nodes numa cópia
+do build usado pelo harness privado.
+
+```sh
+make build
+GSE_TEST_OPTIMIZATIONS=1 GSE_TEST_MULTI=1 GSE_TEST_STATIC_PANEL=1 GSE_TEST_PERFORMANCE=1 GSE_TEST_REGIONAL_REDRAW=1 GSE_TEST_DOCK_DRAG=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_OPTIMIZATIONS=1 GSE_TEST_REGIONAL_REDRAW=1 GSE_TEST_REGRESSIONS=1 GSE_TEST_FLICKER=1 GSE_TEST_FLICKER_BLUR=1 GSE_TEST_DOCK_DRAG=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_OPTIMIZATIONS=1 GSE_TEST_MULTI=1 GSE_TEST_STATIC_PANEL=1 GSE_TEST_KAWASE=1 GSE_TEST_GAUSSIAN_ITERATIONS=1 GSE_TEST_SAMPLES=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_LEGACY_WALLPAPER=1 GSE_TEST_STATIC_PANEL=1 GSE_TEST_KAWASE=1 GSE_TEST_GAUSSIAN_ITERATIONS=1 /usr/bin/python3 tests/headless.py
+```
+
+A última sessão completa também aprovou as resoluções automática/metade/um
+quarto na barra estática e zero frames finais em repouso. A faixa usa a margem
+calculada para o kernel e a reconstrução, incluindo a redução de resolução.
+
+Relatórios e hashes do pacote ficam em `validation/beta-1.8.0-beta.3/`.
 
 ## Arraste nativo junto ao dock — 2026-11-16
 

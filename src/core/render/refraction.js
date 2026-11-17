@@ -4,7 +4,8 @@ import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
 import GLib from 'gi://GLib';
 import {GlassBlur} from './glassBlur.js';
-import {CaptureRate} from './blurPerformance.js';
+import {CaptureRate, blurReduction} from './blurPerformance.js';
+import {uniforms} from './uniforms.js';
 
 // Rounded contour lens inspired by Pedro Ruedas's LiquidGlass.fx (GPL-3.0).
 // https://github.com/PedroRuedas/Windows-Liquid-glass/blob/main/src/LiquidGlass/Effects/Shaders/LiquidGlass.fx
@@ -33,6 +34,7 @@ vec2 glassOffset(vec2 p, vec2 size, float radius, float strength) {
 // its prepared texture. Never capture an offscreen parent or CPU pixels.
 let backdropSnippet;
 let wallpaperSnippet;
+const capabilities = new WeakMap();
 
 export const RefractionEffect = GObject.registerClass({
     Properties: {
@@ -64,10 +66,23 @@ export const RefractionEffect = GObject.registerClass({
     }
 
     release() {
+        if (this._captureExpiry)
+            GLib.Source.remove(this._captureExpiry);
+        this._captureExpiry = 0;
         for (const buffer of this._buffers.values())
             this._cancelRefresh(buffer);
         this._buffers.clear();
         this.regionalRefresh = null;
+    }
+
+    estimatedBytes() {
+        let pixels = 0;
+        for (const b of this._buffers.values()) {
+            pixels += b.width * b.height;
+            if (b.filter)
+                pixels += [...b.filter.levels, b.filter.scratch].reduce((n, t) => n + t.width * t.height, 0);
+        }
+        return pixels * 4;
     }
 
     forceNextRefresh(view) {
@@ -152,11 +167,12 @@ export const RefractionEffect = GObject.registerClass({
         if (width <= 0 || height <= 0 || w <= 0 || h <= 0)
             return;
         try {
+            const cogl = framebuffer.get_context();
             const key = view ? 'view' : 'capture';
             let buffer = this._buffers.get(key);
             const transform = `${x}:${y}:${w}:${h}`;
             const parameters = this._parameters(scale);
-            const prepared = buffer?.prepared && buffer.width === width && buffer.height === height && buffer.view === view;
+            const prepared = buffer?.prepared && buffer.context === cogl && buffer.width === width && buffer.height === height && buffer.view === view;
             const valid = prepared && buffer.transform === transform && buffer.parameters === parameters;
             // A partial source region must not capture this surface's old
             // pixels. Reuse a prepared image until the requested native region
@@ -166,17 +182,17 @@ export const RefractionEffect = GObject.registerClass({
                 return;
             const limited = valid && view && this.deferForRate(view);
             const reuse = !!(view && prepared && (this.captureDeferred || limited));
-            const cogl = framebuffer.get_context();
-            const feature = Cogl.FeatureID.BLIT_FRAMEBUFFER ?? Cogl.FeatureID.OGL_FEATURE_ID_BLIT_FRAMEBUFFER;
-            if (feature !== undefined) {
-                const available = cogl.get_driver
+            if (!capabilities.has(cogl)) {
+                const feature = Cogl.FeatureID.BLIT_FRAMEBUFFER ?? Cogl.FeatureID.OGL_FEATURE_ID_BLIT_FRAMEBUFFER;
+                const available = feature === undefined ? true : cogl.get_driver
                     ? cogl.get_driver().has_feature(feature) : Cogl.has_feature?.(cogl, feature);
-                if (available === false)
-                    throw new Error('Framebuffer copies unsupported by this driver');
+                capabilities.set(cogl, available !== false);
             }
+            if (!capabilities.get(cogl))
+                throw new Error('Framebuffer copies unsupported by this driver');
             // Keep at most one real-view buffer and one screenshot buffer per
             // effect; resizing replaces storage rather than retaining old FBOs.
-            if (!buffer || buffer.width !== width || buffer.height !== height) {
+            if (!buffer || buffer.context !== cogl || buffer.width !== width || buffer.height !== height) {
                 if (buffer)
                     this._cancelRefresh(buffer);
                 const texture = Cogl.Texture2D.new_with_size(cogl, width, height);
@@ -210,7 +226,7 @@ export const RefractionEffect = GObject.registerClass({
                     `);
                 }
                 pipeline.add_snippet(backdropSnippet);
-                buffer = {texture, target, pipeline, width, height, rate: new CaptureRate()};
+                buffer = {texture, target, pipeline, width, height, context: cogl, rate: new CaptureRate(), uniforms: uniforms(pipeline)};
                 this._buffers.set(key, buffer);
             }
             // Flush the scene before the blit. Blit ignores source clipping;
@@ -224,11 +240,11 @@ export const RefractionEffect = GObject.registerClass({
                 if (blurRadius > 0) {
                     const maximum = (this.glassConfig?.blurRadius ?? 0) * scale;
                     const resolution = this.glassConfig?.resolution ?? 'auto';
-                    if (!buffer.filter || buffer.filterMaximum !== maximum || buffer.resolution !== resolution) {
+                    if (!buffer.filter || buffer.filter.reduction !== blurReduction(maximum, resolution)) {
                         buffer.filter = new GlassBlur(cogl, width, height, maximum, resolution);
-                        buffer.filterMaximum = maximum;
-                        buffer.resolution = resolution;
                     }
+                    buffer.filterMaximum = maximum;
+                    buffer.resolution = resolution;
                     pipeline.set_layer_texture(0, buffer.filter.apply(buffer.texture, blurRadius,
                         this.glassConfig.method, this.glassConfig.samples, this.glassConfig.iterations));
                 } else {
@@ -252,11 +268,11 @@ export const RefractionEffect = GObject.registerClass({
             } else {
                 this.statistics[limited ? 'rateReuses' : 'regionalReuses']++;
             }
-            const uniform = (name, value) => pipeline.set_uniform_1f(pipeline.get_uniform_location(name), value);
-            pipeline.set_uniform_float(pipeline.get_uniform_location('glassSize'), 2, 1, [width, height]);
-            pipeline.set_uniform_float(pipeline.get_uniform_location('glassOrigin'), 2, 1,
+            const uniform = (name, value) => buffer.uniforms.scalar(name, value);
+            buffer.uniforms.vector('glassSize', [width, height]);
+            buffer.uniforms.vector('glassOrigin',
                 [layout.x + left / scale, layout.y + top / scale]);
-            pipeline.set_uniform_float(pipeline.get_uniform_location('glassBounds'), 4, 1,
+            buffer.uniforms.vector('glassBounds',
                 this.glassBounds ?? [x, y, w, h]);
             uniform('glassCorner', this.glassCorner ?? 0);
             uniform('glassScale', scale);
@@ -268,6 +284,15 @@ export const RefractionEffect = GObject.registerClass({
                 (layout.y + top / scale - y) * actor.height / h,
                 (layout.x + right / scale - x) * actor.width / w,
                 (layout.y + bottom / scale - y) * actor.height / h, 0, 0, 1, 1);
+            if (!view) {
+                if (this._captureExpiry)
+                    GLib.Source.remove(this._captureExpiry);
+                this._captureExpiry = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+                    this._captureExpiry = 0;
+                    this._buffers.delete('capture');
+                    return GLib.SOURCE_REMOVE;
+                });
+            }
             this._failed = false;
         } catch (error) {
             // Leave the native translucent tint if a driver cannot copy the
@@ -292,7 +317,9 @@ export function wallpaperRefraction(actor, strength, brightness, opaque = false)
     const fragment = `
         vec2 uv = cogl_tex_coord_in[0].xy;
         vec2 size = vec2(glassWidth, glassHeight);
-        vec2 d = glassOffset(uv * size, size, 0.0, strength) / size;
+        vec2 d = vec2(0.0);
+        if (strength > 0.0)
+            d = glassOffset(uv * size, size, 0.0, strength) / size;
         vec4 color = texture2D(SAMPLER, clamp(uv+d, vec2(0.001), vec2(0.999)));
         // The panel's wallpaper is opaque. Normalize premultiplied coverage
         // at the offscreen border instead of revealing unrelated windows.
@@ -317,8 +344,12 @@ export function wallpaperRefraction(actor, strength, brightness, opaque = false)
 }
 
 export function setWallpaperStrength(effect, actor, strength, brightness) {
+    effect._wallpaperUniforms ??= new Map();
     for (const [name, number] of Object.entries({strength, brightness, wallpaperOpaque: effect.wallpaperOpaque ? 1 : 0,
         glassWidth: Math.max(1, actor.width), glassHeight: Math.max(1, actor.height)})) {
+        if (effect._wallpaperUniforms.get(name) === number)
+            continue;
+        effect._wallpaperUniforms.set(name, number);
         const value = new GObject.Value();
         value.init(GObject.TYPE_FLOAT);
         value.set_float(number);

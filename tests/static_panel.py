@@ -9,7 +9,7 @@ from benchmark import read_process, summarize
 def run(evaluate, wait, check, screenshot, results, pid):
     evaluate('''globalThis.spSaved=Object.fromEntries([
         'panel-static-blur','panel-blur','panel-opacity','panel-auto-opacity','panel-style',
-        'blur-enabled','blur-filter-enabled','blur-method','blur-radius','blur-brightness',
+        'blur-enabled','blur-filter-enabled','blur-method','blur-radius','blur-brightness','blur-resolution',
         'refraction-enabled','frosted-glass-enabled'
         ].map(k=>[k,cfg.get_value(k)]));
         globalThis.spBg=new Gio.Settings({schema_id:'org.gnome.desktop.background'});
@@ -48,6 +48,14 @@ def run(evaluate, wait, check, screenshot, results, pid):
         color = pixels('static-panel-'+method)
         results['static-panel-'+method+'-rgb'] = color
         assert color[2]>color[0]+60 and color[1]>color[0]+20, (method,color)
+
+    for resolution in ['half','quarter','auto']:
+        evaluate(f"cfg.set_string('blur-resolution','{resolution}')")
+        wait(f"spSurface()?._state.glassConfig.resolution==='{resolution}'")
+        time.sleep(.2)
+        color=pixels('static-panel-resolution-'+resolution)
+        results['static-panel-resolution-'+resolution+'-rgb']=color
+        assert color[2]>color[0]+60 and color[1]>color[0]+20,(resolution,color)
 
     # This sits INSIDE the output cache, after all its filtering effects. A
     # repaint of a cached image must not paint this effect or its children.

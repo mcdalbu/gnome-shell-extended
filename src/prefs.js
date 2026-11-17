@@ -112,9 +112,9 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         choice(performance, 'blur-render-area', 'Área de redesenho do blur', ['monitor', 'elements'],
             ['Monitor (compatível)', 'Elementos (experimental)'],
             'Atualiza os elementos e suas margens pelo redesenho nativo, podendo atrasar o blur em um frame. Usa o modo compatível durante mover/redimensionar janelas e quando indisponível.');
-        choice(performance, 'blur-resolution', 'Resolução do filtro dinâmico', ['auto', 'half', 'quarter'],
+        choice(performance, 'blur-resolution', 'Resolução do filtro', ['auto', 'half', 'quarter'],
             ['Automática', 'Metade por eixo', 'Um quarto por eixo'],
-            'Texturas menores economizam trabalho do filtro, com perda de detalhes. Aplica-se a Box, Gaussian e Kawase; o papel de parede estático já usa cache.');
+            'Texturas menores economizam trabalho do filtro, com perda de detalhes. Aplica-se a Box, Gaussian e Kawase, incluindo o papel de parede quando suportado; a saída estática fica em cache.');
         choice(performance, 'blur-refresh-rate', 'Atualização do fundo dinâmico', ['100', '50', '25'],
             ['100% — full rate', '50% — half rate', '25% — quarter rate'],
             'Limite relativo a cada monitor: em 60 Hz, até 60, 30 ou 15 atualizações por segundo. A interface mantém sua frequência normal; capturas de tela são atualizadas integralmente.');
