@@ -1,4 +1,80 @@
-# Validação — Gnome Shell Extended 1.8.0
+# Validação — Gnome Shell Extended 1.8.1
+
+## Versão nas preferências — 2026-11-17
+
+O grupo da aba Blur lê `metadata.name` e `metadata['version-name']`, com fallback
+para `metadata.version`. Instanciação GTK real em janela oculta confirmou
+`Gnome Shell Extended 1.8.1`; o texto anterior estava fixo em 1.5.1.
+`make zip` passou a validação de metadados, schemas, sintaxe, lifecycle,
+caches de renderização e integrações GTK/Ptyxis/Configurações.
+
+## Opacidade da lateral do Configurações — 2026-11-17
+
+Regressão em GNOME Shell 51.1 privado, com Configurações nativo e um lançador
+legado que aplica a classe `gnome-extended-settings`, cujo CSS está em 67%.
+Antes da correção, as quatro opacidades solicitadas resultaram em 67,06% nos
+pixels: o `env` interno substituía o overlay atual pelo antigo.
+
+Após a correção, fundos preto/branco confirmaram:
+
+| Opacidade solicitada | Lateral medida | Conteúdo medido |
+| --- | --- | --- |
+| 0% | 0% | 100% |
+| 45% | 45,10% | 100% |
+| 90% | 89,80% | 100% |
+| 100% | 100% | 100% |
+
+O ator da janela permaneceu em 255, sem efeitos de janela, e o lançador
+legado foi restaurado exatamente ao desligar a integração. Cada valor usa
+um processo novo do Configurações para carregar o CSS atualizado.
+
+`make test` cobre execução real de lançadores `env` aninhados, `env -i`, caminhos
+com espaços, preservação de argumentos e de recursos não relacionados.
+Reprodução: `make build` e
+`GSE_TEST_SETTINGS_OPACITY_ONLY=1 /usr/bin/python3 tests/headless.py`.
+Evidências locais: `validation/settings-opacity-baseline-results.json` e
+`validation/settings-opacity-fixed-results.json`. A validação foi feita no
+GNOME 51.1 instalado; outras versões não foram repetidas para esta correção.
+
+A instalação local recebeu somente o helper corrigido e a sincronização do
+lançador/CSS com as preferências atuais. O processo real iniciado por D-Bus
+confirmou `G_RESOURCE_OVERLAYS` apontando para o overlay atual. Cópias dos
+arquivos anteriores estão em `validation/settings-opacity-local-backup/`.
+
+## Retomada do painel — 2026-11-17
+
+A 1.8.0 (31) reproduziu o relato no GNOME privado: a superfície criada depois
+que o módulo é reativado, mas antes de `ScreenShield.active=false`, permaneceu
+oculta com callbacks suspensos. O sinal final não retomou o blur; abrir/fechar o
+Overview recuperou a captura. A sequência corresponde ao código do Shell 51.1:
+`_continueDeactivate()` retorna a `user` antes de `_completeDeactivate()`
+remover a proteção após a animação.
+
+A 1.8.1 (32) observa ambos os eventos que alteram a elegibilidade da superfície.
+O trabalho é agrupado em `Meta.LaterType.BEFORE_REDRAW`, com leitura atualizada
+da visibilidade. As assinaturas são removidas com a superfície; não há timer de
+polling, mudança de preferências nem captura enquanto a proteção está ativa.
+
+A regressão passou com um monitor e com views 125%/150% no modo Elementos:
+retomada sem evento de Overview, diferença média RGB `[0,0,0]` na amostra do
+painel antes/depois, capturas saudáveis, segunda ativação da proteção sem
+recarregar módulos, sinalização nativa `user`/`unlock-dialog` e zero frames na
+janela final de repouso. Desativar o blur removeu os callbacks de sessão/proteção.
+
+O harness usa somente uma sessão D-Bus/GNOME privada. Ele reproduz a ordem dos
+eventos sem suspender fisicamente o computador e sem abrir autenticação; o
+ciclo real de suspensão na sessão do usuário precisa ser confirmado após
+carregar a atualização.
+
+```sh
+make build
+GSE_TEST_PANEL_RESUME=1 GSE_TEST_PANEL_RESUME_ONLY=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_PANEL_RESUME=1 GSE_TEST_PANEL_RESUME_ONLY=1 GSE_TEST_MULTI=1 GSE_TEST_REGIONAL_REDRAW=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_PANEL_RESUME=1 GSE_TEST_REGIONAL_REDRAW=1 GSE_TEST_REGRESSIONS=1 GSE_TEST_FLICKER=1 GSE_TEST_FLICKER_BLUR=1 GSE_TEST_DOCK_DRAG=1 GSE_TEST_STATIC_PANEL=1 /usr/bin/python3 tests/headless.py
+```
+
+Evidências: `validation/panel-resume-1.8.1/`, com a falha da 1.8.0 e os testes
+após a correção.
 
 ## Promoção para estável — 2026-11-16
 

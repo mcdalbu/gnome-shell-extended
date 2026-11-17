@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão estável **1.8.0**.
+preferências GTK4/Libadwaita. Versão estável **1.8.1**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -33,6 +33,21 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. As medições são de cenas específicas; não há
 garantia de ganho percentual de CPU/GPU/RAM nem certificação em todas as versões.
+
+## Correções — 1.8.1
+
+A lateral do Configurações passa a respeitar a opacidade escolhida mesmo
+quando existe um lançador legado com outro overlay. O recurso atual prevalece,
+preservando os demais argumentos e a restauração do lançador. Feche e reabra
+o aplicativo para carregar o CSS atualizado.
+
+A aba Blur mostra a versão dos metadados da extensão, sem um texto de versão fixo.
+
+Corrige o painel que voltava sem blur após acordar e só se recuperava ao abrir e
+fechar o Overview. A superfície observa a mudança da sessão e a desativação da
+proteção da tela de bloqueio para retomar seus callbacks e capturas na próxima
+fase de layout. Preserva a suspensão de trabalho enquanto estiver oculta e não
+usa polling nem força redesenho contínuo.
 
 ## Release estável — 1.8.0
 
@@ -521,6 +536,11 @@ ao desligar a integração, preservando mudanças manuais. Aplicativos iniciados
 por outros caminhos podem precisar de nova ativação D-Bus. O adaptador valida
 o template e mantém o binário original do aplicativo. A integração é para a
 instalação nativa de Configurações, com reinício do aplicativo.
+
+Lançadores herdados da extensão antiga podem definir seu próprio overlay.
+A integração atual aplica seu recurso depois dessas definições, para que a
+lateral siga a opacidade escolhida em Aplicativos. Outros recursos e argumentos
+do lançador são preservados, assim como sua restauração ao desligar a integração.
 
 O Ptyxis usa a chave nativa `opacity` de cada perfil. Os valores anteriores,
 inclusive defaults sem valor explícito, são persistidos em

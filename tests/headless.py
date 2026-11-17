@@ -57,6 +57,10 @@ if os.environ.get('GSE_TEST_OPTIMIZATIONS'):
         VARIANT += '-only'
 if os.environ.get('GSE_TEST_LEGACY_WALLPAPER'):
     VARIANT += '-legacy-wallpaper'
+if os.environ.get('GSE_TEST_PANEL_RESUME'):
+    VARIANT += '-panel-resume'
+if os.environ.get('GSE_TEST_SETTINGS_OPACITY_ONLY'):
+    VARIANT += '-settings-opacity'
 
 
 
@@ -84,6 +88,7 @@ def stage():
         (helper / 'metadata.json').write_text(json.dumps({
             'uuid': helper.name, 'name': 'Private integration helper',
             'description': 'Test bus only', 'shell-version': ['50', '51'],
+            'session-modes': ['user', 'unlock-dialog'],
         }))
         (helper / 'extension.js').write_text('''
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -230,6 +235,19 @@ def test():
             for(let x=0;x<1440;x+=40) scene.add_child(new St.Widget({x,y:32,width:40,height:968,
                 style:`background-color:${x%80?'#7a4189':'#3b818a'};`}));
             Main.uiGroup.insert_child_above(scene,global.window_group);''')
+        if os.environ.get('GSE_TEST_SETTINGS_OPACITY_ONLY'):
+            from settings_opacity import run as test_settings_opacity
+            test_settings_opacity(evaluate, wait, check, screenshot, results, ROOT, log)
+            results['passed'] = True
+            print(json.dumps(results, indent=2))
+            return 0
+        if os.environ.get('GSE_TEST_PANEL_RESUME'):
+            from panel_resume import run as test_panel_resume
+            test_panel_resume(evaluate, wait, check, screenshot, results)
+            if os.environ.get('GSE_TEST_PANEL_RESUME_ONLY'):
+                results['passed']=True
+                print(json.dumps(results,indent=2))
+                return 0
         if os.environ.get('GSE_TEST_OPTIMIZATIONS'):
             from optimizations import run, windows
             run(evaluate, wait, check, screenshot, results, ROOT)

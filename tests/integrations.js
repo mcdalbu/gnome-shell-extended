@@ -5,7 +5,7 @@ import {integrationJob, integrationsSettled} from '../src/core/integrationJobs.j
 import {StyleLease} from '../src/core/style.js';
 import {replaceBlock, writeGtkStyle} from '../src/core/gtkStyle.js';
 import {syncPtyxisOpacity} from '../src/core/ptyxis.js';
-import {syncSettingsLauncher, settingsWindowTemplate} from '../src/core/settingsLauncher.js';
+import {syncSettingsLauncher, settingsWindowTemplate, settingsLauncherExec} from '../src/core/settingsLauncher.js';
 function assert(value, message) {
     if (!value)
         throw new Error(message);
@@ -37,13 +37,33 @@ writeGtkStyle('popover { color: white; }');
 writeGtkStyle('');
 assert(new TextDecoder().decode(GLib.file_get_contents(`${directory}/gtk.css`)[1]) === original, 'GTK roundtrip');
 assert(settingsWindowTemplate('<interface><template class="CcWindow" parent="AdwApplicationWindow"></template></interface>').includes('gse-settings-window'), 'Settings scoped class');
+const overlay = '/tmp/current Settings overlay';
+for (const prefix of [
+    '',
+    "/usr/bin/env 'G_RESOURCE_OVERLAYS=/org/gnome/Settings/gtk=/old:/other=/keep' ",
+    "/usr/bin/env 'G_RESOURCE_OVERLAYS=/outer=/keep' /usr/bin/env -i 'G_RESOURCE_OVERLAYS=/org/gnome/Settings/gtk=/old:/other=/keep' ",
+]) {
+    const command = settingsLauncherExec(`${prefix}/usr/bin/printenv G_RESOURCE_OVERLAYS`, overlay);
+    const [, argv] = GLib.shell_parse_argv(command);
+    const process = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+    const [, output] = process.communicate_utf8(null, null);
+    assert(process.get_successful(), 'Wrapped launcher executes');
+    assert(output.trim().startsWith(`/org/gnome/Settings/gtk=${overlay}`), 'Current Settings overlay wins over legacy env');
+    assert(!output.includes('=/old'), 'Remove conflicting Settings mapping');
+    if (prefix)
+        assert(output.trim().endsWith(':/other=/keep'), 'Preserve unrelated inner overlays');
+}
+const literal = settingsLauncherExec("/usr/bin/printf '%s' 'G_RESOURCE_OVERLAYS=application argument'", overlay);
+const [, literalArgv] = GLib.shell_parse_argv(literal);
+const literalProcess = Gio.Subprocess.new(literalArgv, Gio.SubprocessFlags.STDOUT_PIPE);
+assert(literalProcess.communicate_utf8(null, null)[1] === 'G_RESOURCE_OVERLAYS=application argument', 'Preserve application arguments');
 if (GLib.find_program_in_path('gnome-control-center')) {
     syncSettingsLauncher({get_boolean: () => true});
     const service = Gio.File.new_for_path(`${GLib.get_user_data_dir()}/dbus-1/services/org.gnome.Settings.service`);
     assert(service.query_exists(null), 'Settings launcher created');
     syncSettingsLauncher({get_boolean: () => false});
     assert(!service.query_exists(null), 'Settings launcher removed');
-    const custom = '[D-BUS Service]\nName=org.gnome.Settings\nExec=/usr/bin/gnome-control-center --gapplication-service\n# Custom launcher\n';
+    const custom = '[D-BUS Service]\nName=org.gnome.Settings\nExec=/usr/bin/env G_RESOURCE_OVERLAYS=/org/gnome/Settings/gtk=/old /usr/bin/gnome-control-center --gapplication-service\n# Custom launcher\n';
     service.replace_contents(custom, null, false, Gio.FileCreateFlags.PRIVATE, null);
     syncSettingsLauncher({get_boolean: () => true});
     syncSettingsLauncher({get_boolean: () => false});

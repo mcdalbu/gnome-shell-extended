@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.8.1 — 2026-11-17
+
+- Corrige a opacidade da lateral do Configurações quando existe um lançador da extensão legada: o overlay atual passa a prevalecer sobre variáveis definidas por lançadores `env` aninhados. Preserva argumentos, outros recursos e a restauração do lançador original.
+- Inclui regressão com o aplicativo real, medindo 0%, 45%, 90% e 100% sobre fundos preto/branco.
+- A aba Blur lê o nome e a versão dos metadados da extensão, substituindo o texto fixo em 1.5.1.
+- Corrige a retomada do blur do painel após suspensão/desbloqueio: o modo de usuário pode voltar antes de a proteção da tela terminar sua animação, deixando uma superfície recém-criada com callbacks suspensos.
+- Observa `sessionMode.updated` e `screenShield.active-changed`, agrupando a retomada na próxima fase de layout. Dispensa abrir/fechar o Overview e mantém a pausa de consumidores ocultos, sem polling.
+- Acrescenta regressão com falha reproduzida na 1.8.0, comparação de pixels, ciclos sem recriação de módulo, sinais reais de user/unlock-dialog, escalas fracionárias, repouso e limpeza de sinais ao desativar.
+
+
 ## 1.8.0 — 2026-11-16
 
 - Promove a 1.8.0-beta.3 para estável, com o mesmo código de execução e esquema de preferências; altera somente a identificação da versão e a documentação.

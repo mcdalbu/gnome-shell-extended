@@ -100,6 +100,7 @@ def run(evaluate, wait, check, results, root, log):
                 time.sleep(.4)
                 evaluate("globalThis.dragIdle=0;globalThis.dragIdleId=global.stage.connect('after-paint',()=>dragIdle++)")
                 time.sleep(.6)
+                results.setdefault('regional-drag-idle-frame-counts',{})[f'{effects}-{mode}']=evaluate('dragIdle')
                 check(f'regional-drag-idle-{effects}-{mode}', 'dragIdle<=1')
                 evaluate('global.stage.disconnect(dragIdleId)')
         results['regional-native-drag']=measurements

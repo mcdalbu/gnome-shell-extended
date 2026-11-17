@@ -81,6 +81,12 @@ export class Surface {
                 this._geometry();
                 this._repaint();
             });
+            // Unlock returns to the user session before ScreenShield finishes
+            // its animation. A surface created in that gap pauses its frames;
+            // neither event necessarily changes the panel's allocation/style.
+            this.signals.connect(Main.sessionMode, 'updated', () => this._queueLayoutSync());
+            if (Main.screenShield)
+                this.signals.connect(Main.screenShield, 'active-changed', () => this._queueLayoutSync());
             this._startFrames();
             this.signals.connect(global.display, 'restacked', () => this._repaint());
             this.update();

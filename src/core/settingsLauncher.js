@@ -49,6 +49,57 @@ export function settingsWindowTemplate(original) {
     return original.replace(template, match => `${match}<style><class name="${CLASS_NAME}"/></style>`);
 }
 
+export function settingsLauncherExec(original, overlay) {
+    const [, argv] = GLib.shell_parse_argv(original);
+    const mapping = `/org/gnome/Settings/gtk=${overlay}`;
+    let overlays = GLib.getenv('G_RESOURCE_OVERLAYS') ?? '';
+    let command = 0;
+    // A previous integration may already launch through env. Set the overlay
+    // in the innermost env, after its assignments (and any --ignore-environment),
+    // so an older launcher cannot replace the current Settings template.
+    while (['env', '/usr/bin/env', '/bin/env'].includes(argv[command])) {
+        command++;
+        while (command < argv.length) {
+            const arg = argv[command];
+            if (arg === '--') {
+                command++;
+                break;
+            }
+            if (['-i', '--ignore-environment', '-0', '--null'].includes(arg)) {
+                if (arg === '-i' || arg === '--ignore-environment')
+                    overlays = '';
+                command++;
+            } else if (['-u', '--unset', '-C', '--chdir'].includes(arg)) {
+                if (++command >= argv.length)
+                    throw new Error('Opção incompleta no lançador do Configurações; arquivo preservado.');
+                if ((arg === '-u' || arg === '--unset') && argv[command] === 'G_RESOURCE_OVERLAYS')
+                    overlays = '';
+                command++;
+            } else if (/^--(?:unset|chdir)=/.test(arg)) {
+                if (arg === '--unset=G_RESOURCE_OVERLAYS')
+                    overlays = '';
+                command++;
+            } else if (arg.startsWith('-')) {
+                throw new Error('Opção env incompatível no lançador do Configurações; arquivo preservado.');
+            } else {
+                break;
+            }
+        }
+        while (/^[A-Za-z_][A-Za-z0-9_]*=/.test(argv[command] ?? '')) {
+            if (argv[command].startsWith('G_RESOURCE_OVERLAYS='))
+                overlays = argv[command].slice('G_RESOURCE_OVERLAYS='.length);
+            command++;
+        }
+    }
+    if (command >= argv.length)
+        throw new Error('Comando ausente no lançador do Configurações; arquivo preservado.');
+    const others = overlays.split(':').filter(value => value && !value.startsWith('/org/gnome/Settings/gtk='));
+    // A final env also works for a plain executable and preserves every
+    // original argument, including assignments that belong to the application.
+    argv.splice(command, 0, '/usr/bin/env', `G_RESOURCE_OVERLAYS=${[mapping, ...others].join(':')}`);
+    return argv.map(arg => GLib.shell_quote(arg)).join(' ');
+}
+
 function overlayTemplate(binary) {
     const info = Gio.File.new_for_path(binary).query_info('time::modified,standard::size', Gio.FileQueryInfoFlags.NONE, null);
     const signature = `${binary}:${info.get_attribute_uint64('time::modified')}:${info.get_size()}`;
@@ -127,11 +178,9 @@ function applySettingsLauncher(settings) {
         const keyFile = new GLib.KeyFile();
         const serviceData = baseline ?? '[D-BUS Service]\nName=org.gnome.Settings\n';
         keyFile.load_from_data(serviceData, new TextEncoder().encode(serviceData).length, GLib.KeyFileFlags.KEEP_COMMENTS);
-        const existingOverlay = GLib.getenv('G_RESOURCE_OVERLAYS');
-        const resourceOverlay = `/org/gnome/Settings/gtk=${overlay}${existingOverlay ? `:${existingOverlay}` : ''}`;
         const originalExec = keyFile.get_keys('D-BUS Service')[0].includes('Exec')
             ? keyFile.get_string('D-BUS Service', 'Exec') : `${GLib.shell_quote(binary)} --gapplication-service`;
-        keyFile.set_string('D-BUS Service', 'Exec', `/usr/bin/env ${GLib.shell_quote(`G_RESOURCE_OVERLAYS=${resourceOverlay}`)} ${originalExec}`);
+        keyFile.set_string('D-BUS Service', 'Exec', settingsLauncherExec(originalExec, overlay));
         const [replacement] = keyFile.to_data();
         state ??= {version:1, original:current, installed:[]};
         if (!state.installed.includes(hash(replacement)))
