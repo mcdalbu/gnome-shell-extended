@@ -42,12 +42,12 @@ export class Backgrounds {
         for (const filter of effect.underlay ?? [])
             updateWallpaperFilter(filter, actor, this.appearance);
         setWallpaperStrength(effect, actor, this.appearance.strength,
-            this.settings.get_double('blur-brightness'), this.appearance.glassStyle);
+            this.settings.get_double('blur-brightness'), this.appearance.glassStyle, this.appearance.highlight);
     }
 
     _effect(actor) {
         const effect = wallpaperRefraction(actor, this.appearance.strength,
-            this.settings.get_double('blur-brightness'), false, this.appearance.glassStyle);
+            this.settings.get_double('blur-brightness'), false, this.appearance.glassStyle, this.appearance.highlight);
         effect.underlay = this.appearance.blurRadius > 0
             ? wallpaperFilters(actor, this.appearance) : [];
         return effect;

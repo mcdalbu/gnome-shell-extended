@@ -54,6 +54,16 @@ def run(evaluate, wait, check, screenshot, results, root):
         after=sphere.getpixel((round(x*scale),round(y*scale)))
         assert after[0]>before[0]+2, ('Missing Liquid at element edge',x,y,before,after)
     results['liquid-follows-element-edges']=True
+    point = (round(400*scale), round(185*scale))
+    red = {100: sphere.getpixel(point)[0]}
+    for percent in [0, 200]:
+        evaluate(f"cfg.set_double('refraction-highlight',{percent});liquidSurface.update()")
+        adjusted = Image.open(screenshot(f'liquid-highlight-{percent}')).convert('RGB')
+        red[percent] = adjusted.getpixel(point)[0]
+        assert max(abs(a-line_centroid(adjusted,x)) for a,x in zip(positions,[300,500]))<.3
+    assert red[0]<red[100]<red[200] and abs(red[0]+red[200]-2*red[100])<=2,red
+    results['liquid-highlight-edge-red']=red
+    evaluate("cfg.reset('refraction-highlight');liquidSurface.update()")
     check('liquid-switch-reuses-storage','[...liquidSurface._state.captures.values()].every((c,i)=>c.effect._buffers.get("view")===liquidOldBuffers[i])')
     check('liquid-foreground-opaque','liquidLabel.opacity===255 && liquidBox.opacity===255')
     difference=ImageChops.difference(baseline,sphere)

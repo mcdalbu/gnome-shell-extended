@@ -118,6 +118,12 @@
       <summary>Glass refraction strength</summary>
       <description>Logical-pixel displacement of the live background. Used when glass distortion is enabled.</description>
     </key>
+    <key name="refraction-highlight" type="d">
+      <range min="0.0" max="200.0"/>
+      <default>100.0</default>
+      <summary>Liquid edge highlight intensity</summary>
+      <description>Percentage of the original Liquid highlight. Zero removes the highlight and leaves the distortion active.</description>
+    </key>
     <key name="blur-backend" type="s">
       <choices><choice value="auto"/><choice value="native"/><choice value="lightweight"/><choice value="off"/></choices>
       <default>'auto'</default>

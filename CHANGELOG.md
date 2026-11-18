@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.4 — 2026-11-18
+
+- Adiciona o slider **Realce do Liquid** em **Blur → Vidro**. O intervalo é de 0% a 200%, com 100% como padrão. O controle ajusta o brilho das bordas independentemente da distorção.
+
 ## 1.9.3 — 2026-11-17
 
 - Preserva o realce original de Liquid da 1.9.0 e restaura para esse modelo a suavização de cobertura anterior às alterações de 1.9.1/1.9.2.

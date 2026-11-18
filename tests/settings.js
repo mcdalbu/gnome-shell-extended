@@ -77,6 +77,10 @@ settings.set_string('refraction-style','liquid');
 assert(readAppearance(settings).glassStyle==='liquid', 'Liquid propagated independently of blur method');
 settings.reset('refraction-style');
 assert(settings.get_double('refraction-strength') === 6, 'Refraction default');
+const highlight = schema.get_key('refraction-highlight');
+assert(readAppearance(settings).highlight === 1, 'Liquid defaults to its original highlight');
+assert(highlight.range_check(new GLib.Variant('d', 200)) &&
+    !highlight.range_check(new GLib.Variant('d', 200.01)), 'Liquid highlight is capped at 200%');
 assert(!schema.get_key('refraction-strength').range_check(new GLib.Variant('d', 24.01)), 'Refraction strength range');
 assert(!schema.get_key('blur-mode').range_check(new GLib.Variant('s', 'unknown')), 'Appearance mode choices');
 assert(!settings.get_boolean('opacity-enabled'), 'Application modifications require opting in');

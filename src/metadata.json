@@ -12,8 +12,8 @@
     "50",
     "51"
   ],
-  "version": 38,
-  "version-name": "1.9.3",
+  "version": 39,
+  "version-name": "1.9.4",
   "settings-schema": "org.gnome.shell.extensions.gnome-shell-extended",
   "session-modes": [
     "user",

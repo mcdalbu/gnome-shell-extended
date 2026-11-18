@@ -94,6 +94,17 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             ['contour', 'liquid'], ['Contorno', 'Liquid'],
             'Liquid refrata o fundo nas bordas e nos cantos arredondados, com um brilho sutil. Textos e ícones permanecem nítidos.');
         const strengthControl = number(glassOptions, 'refraction-strength', 'Intensidade da distorção', 0, 24, 0.5);
+        const highlightControl = new Adw.ActionRow({
+            title: 'Realce do Liquid', subtitle: '100% é o brilho original. 0% remove o realce.'});
+        const highlightScale = new Gtk.Scale({name: 'setting-refraction-highlight', orientation: Gtk.Orientation.HORIZONTAL,
+            draw_value: true, digits: 0, width_request: 180, valign: Gtk.Align.CENTER,
+            adjustment: new Gtk.Adjustment({lower: 0, upper: 200, step_increment: 1, page_increment: 10})});
+        highlightScale.set_format_value_func((_scale, value) => `${Math.round(value)}%`);
+        highlightScale.add_mark(100, Gtk.PositionType.BOTTOM, null);
+        highlightScale.update_property([Gtk.AccessibleProperty.LABEL], ['Realce do Liquid']);
+        settings.bind('refraction-highlight', highlightScale.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
+        highlightControl.add_suffix(highlightScale);
+        glassOptions.add(highlightControl);
         const appearance = group(blur, 'Aparência');
         number(appearance, 'blur-brightness', 'Brilho do fundo', 0, 1, 0.05);
         number(appearance, 'surface-opacity', 'Opacidade do fundo', 0, 1, 0.05);
@@ -107,8 +118,9 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             kawaseIterationsControl.sensitive = settings.get_boolean('blur-filter-enabled') && settings.get_string('blur-method') === 'kawase';
             strengthControl.sensitive = settings.get_boolean('refraction-enabled');
             glassStyleControl.sensitive = strengthControl.sensitive;
+            highlightControl.sensitive = strengthControl.sensitive && settings.get_string('refraction-style') === 'liquid';
         };
-        for (const key of ['blur-filter-enabled', 'blur-method', 'refraction-enabled'])
+        for (const key of ['blur-filter-enabled', 'blur-method', 'refraction-enabled', 'refraction-style'])
             connections.push(settings.connect(`changed::${key}`, syncEffects));
         syncEffects();
         const performance = group(blur, 'Recursos',

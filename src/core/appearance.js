@@ -35,6 +35,7 @@ export function readAppearance(settings, {refraction = true} = {}) {
     const method = settings.get_string('blur-method');
     return {blurRadius, strength, radius, frosted, capture: radius > 0,
         glassStyle: settings.get_string('refraction-style'),
+        highlight: settings.get_double('refraction-highlight') / 100,
         resolution: settings.get_string('blur-resolution'),
         refreshPercent: Number(settings.get_string('blur-refresh-rate')),
         method, samples: Number(settings.get_string('blur-samples')),

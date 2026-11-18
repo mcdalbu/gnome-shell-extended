@@ -51,15 +51,16 @@ for (const key of settings.settings_schema.list_keys()) {
         settings.set_boolean(key, !control.active);
         assert(control.active === settings.get_boolean(key), `Boolean read ${key}`);
     } else if (type === 'd' || type === 'i') {
-        const value = control.adjustment.upper / 2;
-        control.value = value;
-        assert(settings.get_value(key).deep_unpack() === control.value, `Numeric write ${key}`);
+        const slider = control instanceof Gtk.Scale;
+        const valueTarget = slider ? control.adjustment : control;
+        valueTarget.value = slider ? 150 : control.adjustment.upper / 2;
+        assert(settings.get_value(key).deep_unpack() === valueTarget.value, `Numeric write ${key}`);
         const lower = control.adjustment.lower;
         if (type === 'd')
             settings.set_double(key, lower);
         else
             settings.set_int(key, lower);
-        assert(control.value === lower, `Numeric read ${key}`);
+        assert(valueTarget.value === lower, `Numeric read ${key}`);
     } else {
         control.selected = 1;
         const changed = settings.get_string(key);
@@ -89,7 +90,12 @@ for (const blur of [false, true]) {
 assert(controls.get('refraction-style').model.get_string(1)==='Liquid', 'Liquid display name');
 controls.get('refraction-style').selected=1;
 assert(settings.get_string('refraction-style')==='liquid', 'Liquid choice writes preference');
+const highlight = controls.get('refraction-highlight');
+assert(highlight instanceof Gtk.Scale && highlight.adjustment.value === 100 &&
+    highlight.adjustment.lower === 0 && highlight.adjustment.upper === 200, 'Liquid slider range and default');
+assert(highlight.is_sensitive(), 'Liquid slider is available when distortion is enabled');
 settings.reset('refraction-style');
+assert(!highlight.is_sensitive(), 'Contour does not use the Liquid slider');
 for (const enabled of [false,true]) for (const method of ['box','fast-gaussian','kawase']) {
     settings.set_boolean('blur-filter-enabled',enabled);settings.set_string('blur-method',method);
     assert(controls.get('blur-samples').sensitive===(enabled && method==='fast-gaussian'), 'Sample selector sensitivity');
