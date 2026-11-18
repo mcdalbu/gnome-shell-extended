@@ -1,4 +1,12 @@
-# Validação — Gnome Shell Extended 1.9.0-beta.2
+# Validação — Gnome Shell Extended 1.9.0
+
+## Promoção para release — 2026-11-17
+
+A 1.9.0 (35) promove a beta.2 validada. Os arquivos de execução e schemas são
+comparados byte a byte, exceto `metadata.json`; somente identificação e
+documentação mudam. Build, lifecycle, schemas e integrações são repetidos,
+além do teste de GPU Liquid com bordas, cantos, centro estável, janelas,
+wallpaper, cache e repouso. Evidências: `validation/release-1.9.0/`.
 
 ## Liquid nas bordas — 2026-11-17
 

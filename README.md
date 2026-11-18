@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão de teste **1.9.0-beta.2**, baseada na estável **1.8.1**.
+preferências GTK4/Libadwaita. Versão estável **1.9.0**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -34,7 +34,7 @@ GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e o
 cenários efetivamente testados. As medições são de cenas específicas; não há
 garantia de ganho percentual de CPU/GPU/RAM nem certificação em todas as versões.
 
-## Liquid — 1.9.0-beta.2
+## Liquid — 1.9.0
 
 Em **Blur → Vidro**, ative **Ativar distorção do vidro** e selecione
 **Modelo do vidro → Liquid**. O controle de intensidade regula o deslocamento

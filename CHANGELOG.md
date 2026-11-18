@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.0 — 2026-11-17
+
+- Promove a beta.2 para estável, preservando seu código de execução e schemas.
+- Inclui Liquid começando nas bordas e nos cantos arredondados, diminuindo para dentro e mantendo o centro estável. Disponível em Blur → Vidro → Modelo do vidro.
+- Mantém Contorno como padrão, os controles independentes de blur/distorção, o cache de wallpaper e os limites de atualização 50%/25%.
+
 ## 1.9.0-beta.2 — 2026-11-17
 
 - Liquid passa a começar no contorno real do elemento, incluindo cantos arredondados. A refração e o brilho diminuem para dentro, preservando o centro sem uma lente elíptica.
