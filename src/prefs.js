@@ -88,7 +88,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             'Passos progressivamente menores suavizam o desfoque. Cada iteração usa duas passadas na GPU; o padrão 4 usa oito passadas.');
         const kawaseIterationsControl = number(blurOptions, 'blur-kawase-iterations', 'Iterações do Kawase', 1, 8, 1,
             'Cada iteração usa uma passada de quatro amostras na GPU. Menos iterações reduzem o trabalho do filtro; o padrão é 3.');
-        const glassOptions = group(blur, 'Vidro', 'A distorção pode ser usada sozinha ou combinada com o blur.');
+        const glassOptions = group(blur, 'Vidro', 'A distorção pode ser usada sozinha ou combinada com o blur. Não se aplica à barra superior.');
         toggle(glassOptions, 'refraction-enabled', 'Ativar distorção do vidro');
         const glassStyleControl = choice(glassOptions, 'refraction-style', 'Modelo do vidro',
             ['contour', 'liquid'], ['Contorno', 'Liquid'],

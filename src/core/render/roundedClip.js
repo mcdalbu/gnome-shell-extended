@@ -106,10 +106,13 @@ export const RoundedClip = GObject.registerClass(class GseRoundedClip extends Cl
         }
         framebuffer.push_region_clip(this._region);
         if (sourceClip) {
-            const left = Math.ceil((sourceClip[0] - layout.x) * scale);
-            const top = Math.ceil((sourceClip[1] - layout.y) * scale);
-            const right = Math.floor((sourceClip[2] - layout.x) * scale);
-            const bottom = Math.floor((sourceClip[3] - layout.y) * scale);
+            // Match rasterization of the source clip: include pixels whose
+            // centers lie inside it. Rounding both edges inward discards a
+            // covered row at fractional scales and exposes the unblurred source.
+            const left = Math.ceil((sourceClip[0] - layout.x) * scale - 0.5);
+            const top = Math.ceil((sourceClip[1] - layout.y) * scale - 0.5);
+            const right = Math.ceil((sourceClip[2] - layout.x) * scale - 0.5);
+            const bottom = Math.ceil((sourceClip[3] - layout.y) * scale - 0.5);
             const rect = {x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top)};
             const region = Mtk ? Mtk.Region.create() : new Cairo.Region();
             if (rect.width > 0 && rect.height > 0) {

@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.9.3 — 2026-11-17
+
+- Preserva o realce original de Liquid da 1.9.0 e restaura para esse modelo a suavização de cobertura anterior às alterações de 1.9.1/1.9.2.
+- Exclui a barra superior da opção Vidro, tanto Contorno quanto Liquid, nos modos dinâmico e de wallpaper estático. Mantém o blur, a opacidade e a textura fosca independentes.
+- Aplica a exclusão antes de escolher/criar a superfície: Vidro sozinho não cria capturas nem filtros na barra. Menus do painel, dock, janelas e demais elementos preservam a configuração global.
+- Informa a exceção nas preferências e verifica os dois modelos, combinações de blur/vidro, ausência de capturas desnecessárias e pixels do painel estático.
+
+## 1.9.2 — 2026-11-17
+
+- Corrige a cobertura parcial da borda reta do shader dinâmico em escalas como 180%: a linha final de um painel de 32 px recebia alpha parcial e revelava o fundo sem tratamento. Bordas retas passam a seguir a rasterização por centro de pixel; a suavização permanece nos arcos dos cantos arredondados.
+- Adiciona perfil de teste em 180%, mantendo os perfis anteriores em 125%/150%, e isola a cobertura do shader da suavização do fundo CSS do painel. A correção não altera a altura nem a área reservada pelo painel.
+
+## 1.9.1 — 2026-11-17
+
+- Corrige a perda de uma linha de cobertura em recortes herdados com coordenadas fracionárias. A interseção considera o centro dos pixels, acompanhando a rasterização do recorte em vez de arredondar as duas bordas para dentro.
+- Acrescenta verificação das três últimas linhas do painel, com Liquid, Box/Gaussian/Kawase e recorte fracionário, tanto no framebuffer nativo quanto na captura de tela. Preserva a altura e a área reservada pelo painel.
+
 ## 1.9.0 — 2026-11-17
 
 - Promove a beta.2 para estável, preservando seu código de execução e schemas.

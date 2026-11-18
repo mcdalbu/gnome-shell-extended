@@ -92,6 +92,32 @@ def run(evaluate, wait, check, screenshot, results, root):
             c.effect.glassConfig.glassStyle==='liquid' && [...c.effect._buffers.values()].some(b=>b.filter))''')
     evaluate('liquidSurface.destroy();liquidBox.destroy();liquidSource.destroy()')
 
+    # Preserve the 1.9.0 Liquid antialiasing on a fractional physical edge.
+    # Zero brightness isolates coverage from both source detail and rim light.
+    evaluate("""cfg.set_boolean('blur-filter-enabled',false);cfg.set_double('blur-brightness',0);
+        globalThis.liquidEdgeSource=new St.Widget({x:180,y:160,width:450,height:100,style:'background-color:white;'});
+        globalThis.liquidEdgeBox=new St.Widget({x:200,y:180,width:400,height:32.5,style:'background-color:transparent;'});
+        Main.uiGroup.add_child(liquidEdgeSource);Main.uiGroup.add_child(liquidEdgeBox);
+        (async()=>{const {Surface}=await import(ext.dir.get_uri()+'/core/surface.js');
+            globalThis.liquidEdgeSurface=new Surface(liquidEdgeBox,liquidEdgeBox,cfg,ext._logger,{manageStyle:false,opacity:()=>0});
+            globalThis.liquidEdgeProbe=(await import('gi://FrameProbe')).default;})();""")
+    wait('liquidEdgeProbe && liquidEdgeSurface._state.captures.size>0')
+    time.sleep(.2)
+    evaluate("""globalThis.liquidEdgePixels=null;
+        globalThis.liquidEdgeId=global.stage.connect('after-paint',(_stage,view)=>{
+            if(view.layout.x!==0)return;
+            const [x,y]=liquidEdgeBox.get_transformed_position(),[,h]=liquidEdgeBox.get_transformed_size();
+            const scale=view.get_scale(),edge=(y+h-view.layout.y)*scale;
+            const row=Math.ceil(edge)-1,left=Math.round((x+200-view.layout.x)*scale);
+            const pixel=liquidEdgeProbe.read(view.get_framebuffer(),left,row,1,1).get_data()[0];
+            liquidEdgePixels={pixel,expected:255*(1-Math.min(1,Math.max(0,edge-row)))};
+        });global.stage.queue_redraw();""")
+    wait('liquidEdgePixels')
+    results['liquid-original-edge-coverage']=evaluate('liquidEdgePixels')
+    evaluate('global.stage.disconnect(liquidEdgeId);liquidEdgeSurface.destroy();liquidEdgeBox.destroy();liquidEdgeSource.destroy();cfg.set_double("blur-brightness",1);cfg.set_boolean("blur-filter-enabled",true)')
+    edge=results['liquid-original-edge-coverage']
+    assert abs(edge['pixel']-edge['expected'])<=2,edge
+
     # The normal element bindings (menus, panel and dock) must all read the
     # model, with independent blur/refraction toggles and unchanged foreground.
     from appearance_controls import run as controls
@@ -151,7 +177,7 @@ def wallpaper(evaluate, wait, check, screenshot, results, root):
             liquidBg.set_string('picture-uri',{json.dumps(path.as_uri())});liquidBg.set_string('picture-uri-dark',{json.dumps(path.as_uri())});
             cfg.set_boolean('panel-auto-opacity',false);cfg.set_double('panel-opacity',.15);cfg.set_string('panel-style','dark');
             cfg.set_boolean('panel-blur',true);cfg.set_boolean('panel-static-blur',true);
-            cfg.set_boolean('blur-filter-enabled',false);cfg.set_boolean('refraction-enabled',true);
+            cfg.set_boolean('blur-filter-enabled',true);cfg.set_int('blur-radius',8);cfg.set_boolean('refraction-enabled',true);
             cfg.set_double('refraction-strength',24);cfg.set_string('refraction-style','contour');
             globalThis.liquidPanel=()=>ext._manager._slots.get('panel').instance.binding.surface;''')
         wait("liquidPanel()?.constructor.name==='WallpaperSurface' && liquidPanel().manager?.backgroundActor")
@@ -166,7 +192,8 @@ def wallpaper(evaluate, wait, check, screenshot, results, root):
         results['liquid-wallpaper-pixel-change']=delta
         peak=max(c[1] for c in ImageChops.difference(before.crop(crop),after.crop(crop)).getextrema())
         results['liquid-wallpaper-edge-peak']=peak
-        assert peak>=2,(delta,peak)
+        assert peak<=1,(delta,peak)
+        check('panel-wallpaper-excludes-glass', "liquidPanel()._state.glassConfig.strength===0 && liquidPanel().finish._wallpaperUniforms.get('strength')===0 && liquidPanel()._state.glassConfig.blurRadius===8")
         check('liquid-wallpaper-reuses-finish','liquidPanel().finish===liquidOldFinish && liquidPanel()._state.captures.size===0')
         evaluate('''(async()=>{const GObject=(await import('gi://GObject')).default;
             const Probe=GObject.registerClass(class GseLiquidCacheProbe extends Clutter.Effect {

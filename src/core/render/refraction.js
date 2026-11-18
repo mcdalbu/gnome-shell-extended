@@ -232,8 +232,15 @@ export const RefractionEffect = GObject.registerClass({
                     color.rgb += vec3(lens.z);
                     vec2 halfGlass = max(glassBounds.zw * 0.5, vec2(0.001));
                     float corner = min(glassCorner, min(halfGlass.x, halfGlass.y));
-                    float distance = glassDistance(p-glassBounds.xy-halfGlass, halfGlass, corner);
-                    float coverage = clamp(0.5-distance*glassScale, 0.0, 1.0);
+                    vec2 local = p-glassBounds.xy;
+                    vec2 arc = abs(local-halfGlass)-halfGlass+corner;
+                    float distance = glassDistance(local-halfGlass, halfGlass, corner);
+                    // Plain blur follows native rectangle pixel coverage.
+                    // Liquid keeps the original 1.9.0 antialiased edge profile.
+                    float coverage = all(greaterThanEqual(local, vec2(0.0))) &&
+                        all(lessThan(local, glassBounds.zw)) ? 1.0 : 0.0;
+                    if (glassLiquid > 0.5 || (corner > 0.0 && arc.x > 0.0 && arc.y > 0.0))
+                        coverage = clamp(0.5-distance*glassScale, 0.0, 1.0);
                     cogl_color_out = vec4(color.rgb * glassBrightness, 1.0) * glassOpacity * coverage;
                     `);
                 }
@@ -289,7 +296,8 @@ export const RefractionEffect = GObject.registerClass({
             uniform('glassCorner', this.glassCorner ?? 0);
             uniform('glassScale', scale);
             uniform('glassStrength', this.radius * (this.glassConfig?.strengthRatio ?? 1));
-            uniform('glassLiquid', this.glassConfig?.glassStyle === 'liquid' ? 1 : 0);
+            uniform('glassLiquid', this.glassConfig?.glassStyle === 'liquid' &&
+                (this.glassConfig?.strengthRatio ?? 1) > 0 ? 1 : 0);
             uniform('glassBrightness', this.brightness);
             uniform('glassOpacity', actor.get_paint_opacity() / 255);
             framebuffer.draw_textured_rectangle(pipeline,

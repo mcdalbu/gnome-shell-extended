@@ -41,7 +41,7 @@ export default class PanelModule {
             enabled: () => !this.disabled && !this.returnPending && (!this.overviewActive || this.overviewOpening) &&
                 this.settings.get_boolean('panel-blur') && this.settings.get_boolean('blur-enabled') &&
                 (this.appearance?.alpha ?? 1) < 1,
-            options: {manageStyle: false, opacity: () => this.appearance?.alpha ?? 1,
+            options: {manageStyle: false, refraction: false, opacity: () => this.appearance?.alpha ?? 1,
                 fade: () => this.fade.value, wallpaper: () => this.settings.get_boolean('panel-static-blur')},
         });
         this.interface = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});

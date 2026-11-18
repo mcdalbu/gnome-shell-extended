@@ -1,4 +1,26 @@
-# Validação — Gnome Shell Extended 1.9.0
+# Validação — Gnome Shell Extended 1.9.3
+
+## Vidro fora da barra superior — 2026-11-17
+
+A 1.9.3 (38) exclui Contorno e Liquid da barra superior antes da seleção da
+superfície e da configuração dos renderers dinâmico e de wallpaper. As
+preferências globais continuam válidas para menus, docks, janelas e fundos.
+O blur e a opacidade da barra permanecem independentes.
+
+Build, lifecycle, caches, schemas e integrações passaram. A sessão GNOME
+Shell 51.1 isolada com monitores em 125%/150% verificou as 12 combinações dos
+três métodos de blur com os controles de blur/vidro: força de refração zero
+na barra, blur preservado e ausência de capturas quando só Vidro está ligado.
+No painel estático, trocar Contorno por Liquid produziu diferença máxima zero
+na região medida. Menus, dock, janela GTK, Overview e adaptador de wallpaper
+do bloqueio mantiveram o efeito. Também passaram os testes de cobertura das
+bordas, cache, cadência, repouso e limpeza ao desativar.
+
+O perfil de realce e a suavização de cobertura do Liquid voltam ao comportamento
+da 1.9.0. Os ajustes de recorte e cobertura para blur sem Liquid ficam
+preservados. A barra é excluída de Vidro; a suavização experimental do realce
+do Liquid não faz parte desta versão. Evidências da
+release: `validation/release-1.9.3/`.
 
 ## Promoção para release — 2026-11-17
 

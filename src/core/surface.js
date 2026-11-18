@@ -273,7 +273,7 @@ export class Surface {
         this._cornerRadius = undefined;
         this._baseAlpha = this.options.opacity?.() ?? this.settings.get_double('surface-opacity');
         this._alpha = this._baseAlpha * (this.options.fade?.() ?? 1);
-        const appearance = readAppearance(this.settings);
+        const appearance = readAppearance(this.settings, this.options);
         this._radius = appearance.radius;
         this._state.glassConfig = appearance;
         this._brightness = this.settings.get_double('blur-brightness') * 100;

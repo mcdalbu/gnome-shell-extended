@@ -19,7 +19,8 @@ def run(evaluate, wait, check, screenshot, results):
         controlsDock.add_child(new St.Widget({style_class:'dash-background',width:420,height:70,
             style:'background-color:rgb(40,40,40);border-radius:18px;'}));
         Main.uiGroup.add_child(controlsDock);controlsMenu.open();
-        globalThis.controlsSurfaces=()=>[controlsMenuSurface(),controlsModule('panel').binding.surface,
+        globalThis.controlsPanel=()=>controlsModule('panel').binding.surface;
+        globalThis.controlsSurfaces=()=>[controlsMenuSurface(),
             controlsModule('docks')?.records.get(controlsDock)?.binding.surface];''')
     wait('controlsModule("docks")?.records.get(controlsDock)?.binding.surface')
     for method in ['box', 'fast-gaussian', 'kawase']:
@@ -28,6 +29,10 @@ def run(evaluate, wait, check, screenshot, results):
             evaluate(f"cfg.set_boolean('blur-filter-enabled',{str(blur).lower()});cfg.set_boolean('refraction-enabled',{str(distortion).lower()})")
             active = blur or distortion
             wait('controlsSurfaces().every(s=>s' + ('?._state?.captures.size>0)' if active else ' && !s._state)'))
+            wait('controlsPanel()' + ('?._state?.captures.size>0' if blur else ' && !controlsPanel()._state'))
+            check(f'panel-excludes-glass-{method}-{blur}-{distortion}',
+                  'controlsPanel()._state.glassConfig.strength===0 && controlsPanel()._state.glassConfig.blurRadius===24'
+                  if blur else '!controlsPanel().backend')
             if active:
                 time.sleep(.15)
                 check(f'toggles-{method}-{blur}-{distortion}', f'''controlsSurfaces().every(s=>

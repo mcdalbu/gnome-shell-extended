@@ -23,6 +23,9 @@ else:
     VARIANT = 'single'
 if os.environ.get('GSE_TEST_MULTI'):
     VARIANT += '-multi'
+if os.environ.get('GSE_TEST_SCALE_180'):
+    VARIANT += '-180'
+PRIMARY_MONITOR = (1800, 1080, 1.8) if os.environ.get('GSE_TEST_SCALE_180') else (1440, 1000, 1.25)
 if os.environ.get('GSE_TEST_REAL_DOCK_CORNERS'):
     VARIANT += '-real-dock'
 if os.environ.get('GSE_TEST_SAMPLES'):
@@ -109,7 +112,7 @@ export default class Helper extends Extension {
             configuration = ET.SubElement(monitors, 'configuration')
             ET.SubElement(configuration, 'layoutmode').text = 'logical'
             left = 0
-            for index, (width, height, scale) in enumerate([(1440, 1000, 1.25), (1440, 900, 1.5)]):
+            for index, (width, height, scale) in enumerate([PRIMARY_MONITOR, (1440, 900, 1.5)]):
                 logical = ET.SubElement(configuration, 'logicalmonitor')
                 for key, value in [('x', left), ('y', 0), ('scale', scale), ('primary', 'yes' if index == 0 else 'no')]:
                     ET.SubElement(logical, key).text = str(value)
@@ -175,7 +178,8 @@ def test():
     OUTPUT.mkdir(exist_ok=True)
     results = {'gnome-shell': subprocess.check_output(['gnome-shell', '--version'], text=True).strip()}
     log = (OUTPUT / f'{VARIANT}-session.log').open('w')
-    command = ['gnome-shell', '--headless', '--wayland', '--no-x11', '--virtual-monitor=1440x1000']
+    command = ['gnome-shell', '--headless', '--wayland', '--no-x11',
+               f'--virtual-monitor={PRIMARY_MONITOR[0]}x{PRIMARY_MONITOR[1]}']
     if os.environ.get('GSE_TEST_MULTI'):
         command.append('--virtual-monitor=1440x900')
     shell = subprocess.Popen(command, stdout=log, stderr=log)
@@ -225,7 +229,9 @@ def test():
         wait('!Main.layoutManager._startingUp && !Main.overview.animationInProgress')
         results['view-scales'] = evaluate('global.stage.peek_stage_views().map(view=>view.get_scale())')
         if os.environ.get('GSE_TEST_MULTI'):
-            assert sorted(results['view-scales']) == [1.25, 1.5], results['view-scales']
+            expected = sorted([PRIMARY_MONITOR[2], 1.5])
+            assert len(results['view-scales']) == len(expected) and all(
+                abs(a-b)<1e-6 for a,b in zip(sorted(results['view-scales']),expected)), results['view-scales']
         evaluate(f'globalThis.ext=Main.extensionManager.lookup({json.dumps(UUID)}).stateObj; '
                  'globalThis.cfg=ext.getSettings();Main.overview.hide();')
         wait('ext._manager._slots.get("panel")?.instance && ext._manager._slots.get("blur")?.instance')

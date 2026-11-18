@@ -1,4 +1,4 @@
-"""The first framebuffer rows of the real panel must receive the backdrop effect."""
+"""Panel edges must retain coverage, including inherited fractional clips."""
 import time
 from PIL import Image, ImageStat
 
@@ -7,7 +7,7 @@ def run(evaluate, wait, check, screenshot, results):
     evaluate('''globalThis.edgeSaved=Object.fromEntries([
         'panel-blur','panel-opacity','panel-auto-opacity','panel-style',
         'blur-enabled','blur-filter-enabled','blur-method','blur-radius','blur-brightness',
-        'refraction-enabled','frosted-glass-enabled'
+        'refraction-enabled','refraction-style','refraction-strength','frosted-glass-enabled'
         ].map(k=>[k,cfg.get_value(k)]));
         cfg.set_boolean('panel-auto-opacity',false);cfg.set_string('panel-style','dark');
         cfg.set_double('panel-opacity',.2);cfg.set_boolean('panel-blur',true);
@@ -29,7 +29,17 @@ def run(evaluate, wait, check, screenshot, results):
     top = round(y*scale)
     clear = ImageStat.Stat(baseline.crop((left, top, right, top+1))).mean[0]
     check('panel-edge-transparency', f'{clear} > 180 && {clear} < 240')
-    for method in ['box', 'fast-gaussian', 'kawase']:
+    evaluate('globalThis.edgeSavedClip=Main.layoutManager.panelBox.has_clip?Main.layoutManager.panelBox.get_clip():null')
+    cases = [(method, liquid, clipped)
+             for method in ['box', 'fast-gaussian', 'kawase']
+             for liquid, clipped in [(False, False), (True, False), (True, True)]]
+    for method, liquid, clipped in cases:
+        label = method + ('-liquid' if liquid else '') + ('-fractional-clip' if clipped else '')
+        evaluate(f"cfg.set_double('panel-opacity',0);cfg.set_boolean('refraction-enabled',{str(liquid).lower()});"
+                 f"cfg.set_string('refraction-style','liquid');cfg.set_double('refraction-strength',12);"
+                 f"cfg.set_double('blur-brightness',{0 if liquid else .5});"
+                 + ('Main.layoutManager.panelBox.set_clip(0,0,Main.layoutManager.panelBox.width,Main.panel.height-.025)'
+                    if clipped else 'Main.layoutManager.panelBox.remove_clip()'))
         evaluate(f"cfg.set_string('blur-method','{method}');cfg.set_boolean('blur-filter-enabled',true)")
         wait('edgePanel.binding.surface?._state.captures.size>0')
         time.sleep(.2)
@@ -41,7 +51,8 @@ def run(evaluate, wait, check, screenshot, results):
                 if(x<r.x || x>=r.x+r.width || y<r.y || y>=r.y+r.height)return;
                 const left=Math.round((x+w*.2-r.x)*scale),width=Math.round(w*.1*scale);
                 const top=Math.round((y-r.y)*scale);
-                edgeNativeRows=[top,top+1,top+2,Math.round((y+h*.5-r.y)*scale)].map(row=>{
+                const bottom=Math.round((y+h-r.y)*scale);
+                edgeNativeRows=[top,top+1,top+2,Math.round((y+h*.5-r.y)*scale),bottom-3,bottom-2,bottom-1].map(row=>{
                     const data=edgeProbe.read(view.get_framebuffer(),left,row,width,1).get_data();
                     let sum=0;for(let i=0;i<data.length;i+=4)sum+=data[i];return sum/width;
                 });
@@ -49,16 +60,17 @@ def run(evaluate, wait, check, screenshot, results):
         wait('edgeNativeRows')
         evaluate('global.stage.disconnect(edgeProbeId)')
         native = evaluate('edgeNativeRows')
-        results['panel-edge-'+method+'-native-rows'] = native
+        results['panel-edge-'+label+'-native-rows'] = native
         assert max(native)-min(native) < 3, (method, 'native framebuffer', native)
         assert clear-min(native) > 70, (method, clear, native)
-        rendered = Image.open(screenshot('panel-edge-'+method)).convert('RGB')
-        rows = list(range(top, top+3)) + [round((y+height*.5)*scale)]
+        rendered = Image.open(screenshot('panel-edge-'+label)).convert('RGB')
+        bottom = round((y+height)*scale)
+        rows = list(range(top, top+3)) + [round((y+height*.5)*scale)] + list(range(bottom-3, bottom))
         values = [ImageStat.Stat(rendered.crop((left, row, right, row+1))).mean[0] for row in rows]
-        results['panel-edge-'+method+'-rows'] = values
-        # A uniform source with 50% brightness isolates missing coverage from
-        # blur-kernel differences. The first three rows must match the center.
+        results['panel-edge-'+label+'-rows'] = values
+        # Uniform white with reduced brightness exposes a missing row. Liquid
+        # uses zero brightness to isolate coverage from its edge highlight.
         assert max(values)-min(values) < 3, (method, values)
         assert clear-min(values) > 70, (method, clear, values)
     check('panel-edge-foreground-opacity', 'Main.panel.opacity===255 && Main.panel._centerBox.opacity===255')
-    evaluate('edgeBackdrop.destroy();for(const [k,v] of Object.entries(edgeSaved))cfg.set_value(k,v)')
+    evaluate('if(edgeSavedClip)Main.layoutManager.panelBox.set_clip(...edgeSavedClip);else Main.layoutManager.panelBox.remove_clip();edgeBackdrop.destroy();for(const [k,v] of Object.entries(edgeSaved))cfg.set_value(k,v)')

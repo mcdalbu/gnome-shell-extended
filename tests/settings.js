@@ -109,6 +109,20 @@ settings.set_string('blur-method', 'fast-gaussian');
 assert(readAppearance(settings).iterations === 8, 'Gaussian iteration count preserved');
 // Verify upgrades with a fresh settings state for each old appearance.
 const reset = () => { for (const key of schema.list_keys()) settings.reset(key); };
+for (const style of ['contour', 'liquid']) {
+    for (const blur of [false, true]) {
+        settings.set_string('refraction-style', style);
+        settings.set_boolean('refraction-enabled', true);
+        settings.set_double('refraction-strength', 24);
+        settings.set_boolean('blur-filter-enabled', blur);
+        settings.set_int('blur-radius', 8);
+        const panel = readAppearance(settings, {refraction: false});
+        assert(panel.strength === 0 && panel.strengthRatio === 0, 'Top bar excludes both glass models');
+        assert(panel.blurRadius === (blur ? 8 : 0) && panel.radius === panel.blurRadius && panel.capture === blur,
+            'Top bar preserves blur and avoids glass-only captures');
+        assert(readAppearance(settings).strength === 24, 'Other elements preserve global glass settings');
+    }
+}
 for (const [mode, blur, distortion, frost] of [
     ['dynamic',true,false,false], ['economical',false,false,true],
     ['refraction',false,true,false], ['combined',true,true,false],

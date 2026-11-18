@@ -27,9 +27,9 @@ export function migrateAppearance(settings) {
     settings.set_int('appearance-controls-version', 1);
 }
 
-export function readAppearance(settings) {
+export function readAppearance(settings, {refraction = true} = {}) {
     const blurRadius = settings.get_boolean('blur-filter-enabled') ? settings.get_int('blur-radius') : 0;
-    const strength = settings.get_boolean('refraction-enabled') ? settings.get_double('refraction-strength') : 0;
+    const strength = refraction && settings.get_boolean('refraction-enabled') ? settings.get_double('refraction-strength') : 0;
     const radius = Math.max(blurRadius, strength);
     const frosted = settings.get_boolean('frosted-glass-enabled');
     const method = settings.get_string('blur-method');

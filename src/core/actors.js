@@ -63,7 +63,7 @@ export class SurfaceBinding {
         this.arrowStyle?.set('-arrow-background-color: transparent;');
         const alpha = this.options?.opacity?.() ?? this.settings.get_double('surface-opacity');
         const enabled = this.options?.blur?.() !== false && alpha < 1;
-        const appearance = readAppearance(this.settings);
+        const appearance = readAppearance(this.settings, this.options);
         const kind = enabled && appearance.capture ? (this.options?.wallpaper?.() ? 'wallpaper' : 'effects') : enabled && appearance.frosted ? 'glass' : 'tint';
         if (kind !== this.surfaceKind) {
             this.token++;

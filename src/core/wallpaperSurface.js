@@ -121,7 +121,7 @@ export class WallpaperSurface {
         const [end, right, bottom] = parent.transform_stage_point(x + width, y + height);
         if (!ok || !end)
             return;
-        const appearance = readAppearance(this.settings);
+        const appearance = readAppearance(this.settings, this.options);
         this._state.glassConfig = appearance;
         const {blurRadius, strength} = appearance;
         const scale = this.source.get_resource_scale() || 1;
