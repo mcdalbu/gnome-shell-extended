@@ -90,6 +90,9 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             'Cada iteração usa uma passada de quatro amostras na GPU. Menos iterações reduzem o trabalho do filtro; o padrão é 3.');
         const glassOptions = group(blur, 'Vidro', 'A distorção pode ser usada sozinha ou combinada com o blur.');
         toggle(glassOptions, 'refraction-enabled', 'Ativar distorção do vidro');
+        const glassStyleControl = choice(glassOptions, 'refraction-style', 'Modelo do vidro',
+            ['contour', 'liquid'], ['Contorno', 'Liquid'],
+            'Liquid refrata o fundo nas bordas e nos cantos arredondados, com um brilho sutil. Textos e ícones permanecem nítidos.');
         const strengthControl = number(glassOptions, 'refraction-strength', 'Intensidade da distorção', 0, 24, 0.5);
         const appearance = group(blur, 'Aparência');
         number(appearance, 'blur-brightness', 'Brilho do fundo', 0, 1, 0.05);
@@ -103,6 +106,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             iterationsControl.sensitive = samplesControl.sensitive;
             kawaseIterationsControl.sensitive = settings.get_boolean('blur-filter-enabled') && settings.get_string('blur-method') === 'kawase';
             strengthControl.sensitive = settings.get_boolean('refraction-enabled');
+            glassStyleControl.sensitive = strengthControl.sensitive;
         };
         for (const key of ['blur-filter-enabled', 'blur-method', 'refraction-enabled'])
             connections.push(settings.connect(`changed::${key}`, syncEffects));

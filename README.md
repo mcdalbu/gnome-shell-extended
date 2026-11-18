@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão estável **1.8.1**.
+preferências GTK4/Libadwaita. Versão de teste **1.9.0-beta.2**, baseada na estável **1.8.1**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -14,7 +14,7 @@ Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md
 | Docks | Dash to Dock/Ubuntu Dock: blur, opacidade do fundo e fundo invisível no Overview, preservando os ícones |
 | Sombras | Grade, pastas, dock e Alt+Tab; intensidade, raio e deslocamentos |
 | Aplicativos | Integração opcional por CSS para barras laterais do Nautilus/Configurações e menus GTK4; opacidade nativa dos perfis do Ptyxis |
-| Preferências | Seis abas, 56 controles, limites de valores e restauração de defaults |
+| Preferências | Seis abas, 57 controles, limites de valores e restauração de defaults |
 
 Por padrão, blur do calendário/configurações rápidas e painel adaptativo ficam
 ativos. Outros elementos podem ser habilitados individualmente. As integrações
@@ -33,6 +33,24 @@ precisa de reinício desses aplicativos e pode não alcançar Flatpaks.
 GNOME 45–51 são alvos declarados. Consulte `VALIDATION.md` para a versão e os
 cenários efetivamente testados. As medições são de cenas específicas; não há
 garantia de ganho percentual de CPU/GPU/RAM nem certificação em todas as versões.
+
+## Liquid — 1.9.0-beta.2
+
+Em **Blur → Vidro**, ative **Ativar distorção do vidro** e selecione
+**Modelo do vidro → Liquid**. O controle de intensidade regula o deslocamento
+do fundo. A opção Contorno continua sendo o padrão.
+
+Liquid usa refração esférica e um realce suave na borda, inspirados no exemplo
+[Glass Sphere](https://www.shader-learn.com/examples/glass-sphere). A lente é
+ajustada às bordas e aos cantos arredondados de cada elemento, com intensidade que diminui para dentro e centro estável.
+Textos, ícones e conteúdo opaco dos aplicativos permanecem sobre o efeito.
+
+Pode ser usado sozinho ou com Box, Gaussian e Kawase nos elementos habilitados,
+incluindo painel/dock, menus, fundos transparentes das janelas e wallpaper.
+O acabamento Liquid faz uma leitura do fundo por fragmento e reutiliza a
+captura existente; blur combinado conserva o custo do filtro selecionado.
+O shader não usa tempo nem animação própria. O painel estático mantém o cache
+final, e os fundos dinâmicos respeitam as opções de atualização 50%/25%.
 
 ## Correções — 1.8.1
 

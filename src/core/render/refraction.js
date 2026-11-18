@@ -6,6 +6,7 @@ import GLib from 'gi://GLib';
 import {GlassBlur} from './glassBlur.js';
 import {CaptureRate, blurReduction} from './blurPerformance.js';
 import {uniforms} from './uniforms.js';
+import {liquidSource} from './liquid.js';
 
 // Rounded contour lens inspired by Pedro Ruedas's LiquidGlass.fx (GPL-3.0).
 // https://github.com/PedroRuedas/Windows-Liquid-glass/blob/main/src/LiquidGlass/Effects/Shaders/LiquidGlass.fx
@@ -53,6 +54,7 @@ export const RefractionEffect = GObject.registerClass({
     }
 
     configure(config) {
+        const styleChanged = this.glassConfig && this.glassConfig.glassStyle !== config?.glassStyle;
         if (config?.blurRadius === 0 && this.glassConfig?.blurRadius !== 0) {
             // A screenshot may not paint again after the user disables blur.
             // Release its blur pyramid too, rather than waiting for repaint.
@@ -63,6 +65,8 @@ export const RefractionEffect = GObject.registerClass({
             }
         }
         this.glassConfig = config;
+        if (styleChanged)
+            this.queue_repaint();
     }
 
     release() {
@@ -207,17 +211,25 @@ export const RefractionEffect = GObject.registerClass({
                     backdropSnippet = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT,
                         `uniform vec2 glassSize; uniform vec2 glassOrigin;
                          uniform float glassScale; uniform float glassStrength;
-                         uniform float glassBrightness; uniform float glassOpacity;
+                         uniform float glassBrightness; uniform float glassOpacity; uniform float glassLiquid;
                          uniform vec4 glassBounds; uniform float glassCorner;
-                         ${normalSource}`, null);
+                         ${normalSource} ${liquidSource}`, null);
                     backdropSnippet.set_replace(`
                     vec2 uv = cogl_tex_coord_in[0].xy;
                     vec2 p = glassOrigin + uv * glassSize / glassScale;
                     vec2 offset = vec2(0.0);
-                    if (glassStrength > 0.0)
-                        offset = glassOffset(p-glassBounds.xy, glassBounds.zw, glassCorner, glassStrength) * glassScale / glassSize;
+                    vec3 lens = vec3(0.0);
+                    if (glassStrength > 0.0) {
+                        if (glassLiquid > 0.5) {
+                            lens = liquidLens(p-glassBounds.xy, glassBounds.zw, glassCorner, glassStrength);
+                            offset = lens.xy * glassScale / glassSize;
+                        } else {
+                            offset = glassOffset(p-glassBounds.xy, glassBounds.zw, glassCorner, glassStrength) * glassScale / glassSize;
+                        }
+                    }
                     vec2 halfPixel = vec2(0.5) / glassSize;
                     vec4 color = texture2D(cogl_sampler0, clamp(uv + offset, halfPixel, vec2(1.0)-halfPixel));
+                    color.rgb += vec3(lens.z);
                     vec2 halfGlass = max(glassBounds.zw * 0.5, vec2(0.001));
                     float corner = min(glassCorner, min(halfGlass.x, halfGlass.y));
                     float distance = glassDistance(p-glassBounds.xy-halfGlass, halfGlass, corner);
@@ -277,6 +289,7 @@ export const RefractionEffect = GObject.registerClass({
             uniform('glassCorner', this.glassCorner ?? 0);
             uniform('glassScale', scale);
             uniform('glassStrength', this.radius * (this.glassConfig?.strengthRatio ?? 1));
+            uniform('glassLiquid', this.glassConfig?.glassStyle === 'liquid' ? 1 : 0);
             uniform('glassBrightness', this.brightness);
             uniform('glassOpacity', actor.get_paint_opacity() / 255);
             framebuffer.draw_textured_rectangle(pipeline,
@@ -311,16 +324,25 @@ export function refractionBackend(combined = false) {
 
 // Wallpaper already has a source texture; distort that texture instead of
 // capturing unrelated Shell layers or the lock screen's foreground controls.
-export function wallpaperRefraction(actor, strength, brightness, opaque = false) {
+export function wallpaperRefraction(actor, strength, brightness, opaque = false, style = 'contour') {
     const declarations = `uniform float strength; uniform float glassWidth;
-        uniform float glassHeight; uniform float brightness; uniform float wallpaperOpaque; ${normalSource}`;
+        uniform float glassHeight; uniform float brightness; uniform float wallpaperOpaque;
+        uniform float glassLiquid; ${normalSource} ${liquidSource}`;
     const fragment = `
         vec2 uv = cogl_tex_coord_in[0].xy;
         vec2 size = vec2(glassWidth, glassHeight);
         vec2 d = vec2(0.0);
-        if (strength > 0.0)
-            d = glassOffset(uv * size, size, 0.0, strength) / size;
+        vec3 lens = vec3(0.0);
+        if (strength > 0.0) {
+            if (glassLiquid > 0.5) {
+                lens = liquidLens(uv * size, size, 0.0, strength);
+                d = lens.xy / size;
+            } else {
+                d = glassOffset(uv * size, size, 0.0, strength) / size;
+            }
+        }
         vec4 color = texture2D(SAMPLER, clamp(uv+d, vec2(0.001), vec2(0.999)));
+        color.rgb += vec3(lens.z) * color.a;
         // The panel's wallpaper is opaque. Normalize premultiplied coverage
         // at the offscreen border instead of revealing unrelated windows.
         if (wallpaperOpaque > 0.5)
@@ -339,13 +361,15 @@ export function wallpaperRefraction(actor, strength, brightness, opaque = false)
             void main() { ${fragment.replace('SAMPLER', 'tex')} }`);
     }
     effect.wallpaperOpaque = opaque;
-    setWallpaperStrength(effect, actor, strength, brightness);
+    setWallpaperStrength(effect, actor, strength, brightness, style);
     return effect;
 }
 
-export function setWallpaperStrength(effect, actor, strength, brightness) {
+export function setWallpaperStrength(effect, actor, strength, brightness, style = 'contour') {
+    effect.glassStyle = style;
     effect._wallpaperUniforms ??= new Map();
-    for (const [name, number] of Object.entries({strength, brightness, wallpaperOpaque: effect.wallpaperOpaque ? 1 : 0,
+    for (const [name, number] of Object.entries({strength, brightness, glassLiquid: style === 'liquid' ? 1 : 0,
+        wallpaperOpaque: effect.wallpaperOpaque ? 1 : 0,
         glassWidth: Math.max(1, actor.width), glassHeight: Math.max(1, actor.height)})) {
         if (effect._wallpaperUniforms.get(name) === number)
             continue;

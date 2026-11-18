@@ -81,10 +81,15 @@ for (const blur of [false, true]) {
         assert(controls.get('blur-method').sensitive === blur, 'Blur method follows blur toggle');
         assert(controls.get('blur-radius').sensitive === blur, 'Blur radius follows blur toggle');
         assert(controls.get('refraction-strength').sensitive === distortion, 'Distortion strength independent');
+        assert(controls.get('refraction-style').sensitive === distortion, 'Glass model follows distortion toggle');
         assert(controls.get('refraction-enabled').sensitive, 'Distortion toggle always available');
         assert(controls.get('blur-filter-enabled').sensitive, 'Blur toggle always available');
     }
 }
+assert(controls.get('refraction-style').model.get_string(1)==='Liquid', 'Liquid display name');
+controls.get('refraction-style').selected=1;
+assert(settings.get_string('refraction-style')==='liquid', 'Liquid choice writes preference');
+settings.reset('refraction-style');
 for (const enabled of [false,true]) for (const method of ['box','fast-gaussian','kawase']) {
     settings.set_boolean('blur-filter-enabled',enabled);settings.set_string('blur-method',method);
     assert(controls.get('blur-samples').sensitive===(enabled && method==='fast-gaussian'), 'Sample selector sensitivity');

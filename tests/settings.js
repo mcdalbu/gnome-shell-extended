@@ -70,6 +70,12 @@ assert(schema.get_key('blur-glass-method').range_check(new GLib.Variant('s','fas
 assert(!schema.get_key('blur-glass-method').range_check(new GLib.Variant('s','unknown')), 'Glass filter choices');
 assert(settings.get_string('blur-mode') === 'dynamic', 'Dynamic mode preserves existing appearance');
 assert(schema.get_key('blur-mode').range_check(new GLib.Variant('s', 'refraction')), 'Refraction choice');
+assert(settings.get_string('refraction-style')==='contour', 'Existing lens remains the default');
+assert(schema.get_key('refraction-style').range_check(new GLib.Variant('s','liquid')), 'Liquid glass choice');
+assert(!schema.get_key('refraction-style').range_check(new GLib.Variant('s','unknown')), 'Reject unknown glass style');
+settings.set_string('refraction-style','liquid');
+assert(readAppearance(settings).glassStyle==='liquid', 'Liquid propagated independently of blur method');
+settings.reset('refraction-style');
 assert(settings.get_double('refraction-strength') === 6, 'Refraction default');
 assert(!schema.get_key('refraction-strength').range_check(new GLib.Variant('d', 24.01)), 'Refraction strength range');
 assert(!schema.get_key('blur-mode').range_check(new GLib.Variant('s', 'unknown')), 'Appearance mode choices');

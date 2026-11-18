@@ -26,6 +26,15 @@ do projeto Windows-Liquid-glass, de Pedro Ruedas (GPL-3.0). A adaptação GLSL/C
 usa o fundo já pintado pelo compositor GNOME; não inclui o código de captura
 de janelas do Windows, dispersão cromática ou as sombras do shader original.
 
+## Liquid (2026-11-17)
+
+`src/core/render/liquid.js` implementa a refração de uma interface esférica
+pela lei de Snell e um realce artístico na borda. A referência visual e técnica
+é [Glass Sphere Background Refraction, Shader Learn](https://www.shader-learn.com/examples/glass-sphere).
+A implementação GLSL desta extensão, sob GPL-3.0-only, ajusta a lente ao contorno arredondado
+de cada elemento, limita deslocamentos em superfícies finas e suaviza sua
+borda. Usa uma amostra do fundo no compositor, sem reflexão interna ou animação.
+
 ## Kawase (2026-11-16)
 
 `src/core/render/kawase.js` implementa o princípio de passadas diagonais de

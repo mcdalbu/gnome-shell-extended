@@ -169,10 +169,10 @@ export class WallpaperSurface {
         for (const filter of this.filters)
             updateWallpaperFilter(filter, this.source, appearance);
         if (!this.finish) {
-            this.finish = wallpaperRefraction(this.viewport, strength, brightness, true);
+            this.finish = wallpaperRefraction(this.viewport, strength, brightness, true, appearance.glassStyle);
             this.viewport.add_effect_with_name('gse-static-finish', this.finish);
         } else {
-            setWallpaperStrength(this.finish, this.viewport, strength, brightness);
+            setWallpaperStrength(this.finish, this.viewport, strength, brightness, appearance.glassStyle);
         }
         if (appearance.frosted)
             syncFrostedGlass(this._state, (this.options.opacity?.() ?? 1) * 0.32);

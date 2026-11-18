@@ -1,4 +1,61 @@
-# Validação — Gnome Shell Extended 1.8.1
+# Validação — Gnome Shell Extended 1.9.0-beta.2
+
+## Liquid nas bordas — 2026-11-17
+
+A beta.2 usa a distância ao contorno arredondado e sua normal para orientar
+a refração. O perfil começa na borda e termina em até 32 pixels lógicos para
+dentro, limitado pela espessura do elemento. O centro fica estável. A regressão
+verifica as quatro bordas, um canto arredondado, pixels externos e linhas
+interiores sem deslocamento. Abaixo está o registro da implementação inicial.
+
+## Liquid inicial (beta.1) — 2026-11-17
+
+A beta acrescenta um modelo de refração ao renderer existente: 47 módulos,
+62 chaves e 57 controles. O valor padrão é `contour`, preservando a aparência
+dos perfis existentes. O modelo `liquid` só atua com a distorção habilitada e
+intensidade positiva; não habilita captura quando blur e distorção estão desligados.
+
+O shader calcula uma normal de esfera em coordenadas normalizadas à elipse do
+elemento, usa `refract` com índice 1,45 e acrescenta um realce artístico de
+borda. O deslocamento é limitado pelo menor semieixo, preservando amostras
+internas mesmo em barras finas. O recorte e a composição dos elementos continuam
+no caminho compartilhado; não há ray marching, textura de normais ou tempo.
+
+O teste em GPU verifica barras de fundo em 300/500 deslocadas simetricamente
+para aproximadamente 295,81/504,27 com intensidade 24, enquanto o Contorno
+mantém as barras interiores em 300/500. Verifica também pixels externos
+inalterados, zero intensidade, armazenamento reaproveitado, UI de modelos,
+blur combinado com os três métodos e conteúdo opaco de uma janela GTK real.
+A lateral transparente mudou; a região opaca da janela manteve diferença zero.
+
+O painel estático atualizou os pixels ao trocar o modelo sem recriar o
+acabamento ou criar capturas de tela. Seu cache final não processou a fonte
+durante uma animação externa; a janela de repouso terminou sem frames novos.
+A regressão do modelo Contorno e as preferências GTK reais também passaram.
+
+A matriz com views 125%/150% no modo Elementos aprovou a troca ao vivo do
+modelo em menus/painel/dock e a retomada do painel após desbloqueio. Em 42
+frames da view do elemento, houve 21 capturas em 50% e 11 em 25%; o limite é
+um orçamento, e o dano regional pode reduzir ainda mais a contagem.
+
+O wallpaper do Overview recebeu Liquid e produziu sua textura. O adaptador do
+wallpaper de bloqueio recebeu o mesmo modelo numa fixture sem autenticação e
+restaurou o efeito nativo ao desativar. O arraste por ponteiro junto ao dock
+real também passou com Liquid ativo, nos modos Monitor/Elementos, com efeitos
+de janela/dock desligados e ligados; os quatro casos terminaram com zero frames
+no intervalo de repouso medido.
+
+```sh
+make build
+GSE_TEST_REFRACTION=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_LIQUID=1 /usr/bin/python3 tests/headless.py
+GSE_TEST_LIQUID=1 GSE_TEST_MULTI=1 GSE_TEST_REGIONAL_REDRAW=1 GSE_TEST_PANEL_RESUME=1 /usr/bin/python3 tests/headless.py
+```
+
+Evidências: `validation/liquid-1.9.0-beta.1/`. As contagens de leituras referem-se
+ao acabamento, somadas ao custo do blur quando habilitado; não são uma medição
+de economia percentual da GPU. A implementação é uma aproximação com uma
+interface óptica, conforme a referência, e não inclui reflexões internas.
 
 ## Versão nas preferências — 2026-11-17
 

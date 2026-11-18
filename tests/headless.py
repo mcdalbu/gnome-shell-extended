@@ -62,6 +62,10 @@ if os.environ.get('GSE_TEST_PANEL_RESUME'):
 if os.environ.get('GSE_TEST_SETTINGS_OPACITY_ONLY'):
     VARIANT += '-settings-opacity'
 
+if os.environ.get('GSE_TEST_LIQUID'):
+    VARIANT += '-liquid'
+    if os.environ.get('GSE_TEST_LIQUID_ONLY'):
+        VARIANT += '-only'
 
 
 def stage():
@@ -241,6 +245,13 @@ def test():
             results['passed'] = True
             print(json.dumps(results, indent=2))
             return 0
+        if os.environ.get('GSE_TEST_LIQUID'):
+            from liquid import run as test_liquid
+            test_liquid(evaluate, wait, check, screenshot, results, ROOT)
+            if os.environ.get('GSE_TEST_LIQUID_ONLY'):
+                results['passed']=True
+                print(json.dumps(results,indent=2))
+                return 0
         if os.environ.get('GSE_TEST_PANEL_RESUME'):
             from panel_resume import run as test_panel_resume
             test_panel_resume(evaluate, wait, check, screenshot, results)

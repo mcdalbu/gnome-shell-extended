@@ -287,6 +287,7 @@ export default class PanelModule {
                 this.settings.get_string('blur-resolution'), this.settings.get_string('blur-refresh-rate'),
                 this.settings.get_int('blur-iterations'), this.settings.get_int('blur-kawase-iterations'),
                 this.settings.get_boolean('refraction-enabled'), this.settings.get_double('refraction-strength'),
+                this.settings.get_string('refraction-style'),
                 this.settings.get_boolean('frosted-glass-enabled'),
                 this.overviewActive, this.overviewOpening, this.overviewClosing,
                 this.returnPending, this.returning]);

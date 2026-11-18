@@ -83,6 +83,12 @@
       <summary>Enable glass distortion</summary>
       <description>Refract the background independently of blur.</description>
     </key>
+    <key name="refraction-style" type="s">
+      <choices><choice value="contour"/><choice value="liquid"/></choices>
+      <default>'contour'</default>
+      <summary>Glass distortion model</summary>
+      <description>Contour keeps the rounded edge lens. Liquid uses sphere refraction with a subtle bright rim, fitted to each element. Applies when glass distortion is enabled.</description>
+    </key>
     <key name="frosted-glass-enabled" type="b">
       <default>false</default>
       <summary>Enable static frosted texture</summary>

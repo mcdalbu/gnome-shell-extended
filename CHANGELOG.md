@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.9.0-beta.2 — 2026-11-17
+
+- Liquid passa a começar no contorno real do elemento, incluindo cantos arredondados. A refração e o brilho diminuem para dentro, preservando o centro sem uma lente elíptica.
+
+## 1.9.0-beta.1 — 2026-11-17
+
+- Adiciona **Liquid** em **Blur → Vidro → Modelo do vidro**, como opção de refração de esfera com realce artístico na borda. Ajusta a lente ao contorno arredondado do elemento e mantém textos/ícones em primeiro plano.
+- Acrescenta `refraction-style` (`contour`/`liquid`), com Contorno como padrão. O modelo é independente dos métodos de blur e usa o controle de intensidade existente.
+- Integra Liquid às capturas locais de menus, painel, docks e janelas e ao acabamento de wallpaper, incluindo a barra estática. A troca do modelo atualiza a composição sem trocar o buffer nem recriar os filtros de wallpaper.
+- Mantém uma amostra do fundo no acabamento e nenhuma animação própria. Preserva a cadência dos fundos dinâmicos e o cache final do wallpaper.
+- Adiciona regressões de pixels para magnificação/simetria, intensidade zero, conteúdo opaco, área externa, seleção ao vivo, modelos combinados e repouso. Referência visual/técnica: Glass Sphere, Shader Learn.
+
+
 ## 1.8.1 — 2026-11-17
 
 - Corrige a opacidade da lateral do Configurações quando existe um lançador da extensão legada: o overlay atual passa a prevalecer sobre variáveis definidas por lançadores `env` aninhados. Preserva argumentos, outros recursos e a restauração do lançador original.

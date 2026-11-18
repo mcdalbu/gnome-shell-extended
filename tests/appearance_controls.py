@@ -4,7 +4,7 @@ import time
 
 def run(evaluate, wait, check, screenshot, results):
     evaluate('''globalThis.controlsSaved=Object.fromEntries([
-        'blur-filter-enabled','refraction-enabled','frosted-glass-enabled','blur-method',
+        'blur-filter-enabled','refraction-enabled','refraction-style','frosted-glass-enabled','blur-method',
         'blur-radius','refraction-strength','panel-blur','panel-auto-opacity',
         'docks-enabled','dock-blur','surface-opacity'
         ].map(k=>[k,cfg.get_value(k)]));
@@ -44,5 +44,10 @@ def run(evaluate, wait, check, screenshot, results):
     evaluate("cfg.set_boolean('blur-filter-enabled',false);cfg.set_boolean('refraction-enabled',false)")
     wait('controlsSurfaces().every(s=>s?._state?.glass?.mapped && !s._state.captures.size)')
     check('frost-only-no-captures', 'controlsSurfaces().every(s=>!s.backend && !s._stopDamage)')
+    evaluate("cfg.set_boolean('frosted-glass-enabled',false);cfg.set_boolean('refraction-enabled',true)")
+    for style in ['contour','liquid']:
+        evaluate(f"cfg.set_string('refraction-style','{style}')")
+        wait(f"controlsSurfaces().every(s=>s?._state?.glassConfig.glassStyle==='{style}' && s._state.captures.size>0)")
+        check('glass-model-live-'+style, 'controlsSurfaces().every(s=>[...s._state.captures.values()].every(c=>!c.effect._failed))')
     evaluate('controlsMenu.close();controlsDock.destroy();for(const [k,v] of Object.entries(controlsSaved))cfg.set_value(k,v)')
     wait('!controlsMenuSurface() && ext._manager._slots.size===2')
