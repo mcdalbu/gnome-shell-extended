@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.6 — 2026-11-18
+
+- Adiciona realce opcional na borda inferior do painel quando Liquid está ativo. A linha usa o controle de intensidade do Liquid e ocupa um pixel lógico dentro da barra.
+
 ## 1.9.5 — 2026-11-18
 
 - Remove regras GTK residuais do GNOME Extended antigo quando ele está desativado. A limpeza restaura as cores do tema nas laterais do Nautilus e das Configurações e nos menus GTK4, inclusive quando a transparência seletiva já está desligada na inicialização.

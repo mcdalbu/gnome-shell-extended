@@ -5,9 +5,9 @@ from PIL import Image, ImageStat
 
 def run(evaluate, wait, check, screenshot, results):
     evaluate('''globalThis.edgeSaved=Object.fromEntries([
-        'panel-blur','panel-opacity','panel-auto-opacity','panel-style',
+        'panel-blur','panel-opacity','panel-auto-opacity','panel-style','panel-liquid-highlight',
         'blur-enabled','blur-filter-enabled','blur-method','blur-radius','blur-brightness',
-        'refraction-enabled','refraction-style','refraction-strength','frosted-glass-enabled'
+        'refraction-enabled','refraction-style','refraction-strength','refraction-highlight','frosted-glass-enabled'
         ].map(k=>[k,cfg.get_value(k)]));
         cfg.set_boolean('panel-auto-opacity',false);cfg.set_string('panel-style','dark');
         cfg.set_double('panel-opacity',.2);cfg.set_boolean('panel-blur',true);
@@ -72,5 +72,19 @@ def run(evaluate, wait, check, screenshot, results):
         # uses zero brightness to isolate coverage from its edge highlight.
         assert max(values)-min(values) < 3, (method, values)
         assert clear-min(values) > 70, (method, clear, values)
+    evaluate("""Main.layoutManager.panelBox.remove_clip();
+        cfg.set_boolean('panel-liquid-highlight',true);
+        cfg.set_string('refraction-style','liquid');cfg.set_boolean('refraction-enabled',true);
+        cfg.set_double('refraction-highlight',0);""")
+    highlights = []
+    for intensity in [0, 100, 200]:
+        evaluate(f"cfg.set_double('refraction-highlight',{intensity})")
+        time.sleep(.3)
+        shot = Image.open(screenshot(f'panel-liquid-highlight-{intensity}')).convert('RGB')
+        highlights.append(ImageStat.Stat(shot.crop((left, bottom-1, right, bottom))).mean[0])
+    assert highlights[0]+2 < highlights[1] < highlights[2]-2, highlights
+    results['panel-liquid-highlight-red'] = highlights
+    check('panel-liquid-highlight-keeps-layout',
+          f'Main.panel.height==={height} && edgePanel.binding.surface._state.glassConfig.strength===0')
     check('panel-edge-foreground-opacity', 'Main.panel.opacity===255 && Main.panel._centerBox.opacity===255')
     evaluate('if(edgeSavedClip)Main.layoutManager.panelBox.set_clip(...edgeSavedClip);else Main.layoutManager.panelBox.remove_clip();edgeBackdrop.destroy();for(const [k,v] of Object.entries(edgeSaved))cfg.set_value(k,v)')

@@ -23,6 +23,18 @@ export default class PanelModule {
 
     enable() {
         this.panel = Main.panel;
+        const panelBox = Main.layoutManager.panelBox;
+        this.rim = new St.Widget({height: 1, reactive: false, visible: false,
+            style: 'background-color: white;'});
+        panelBox.get_parent().insert_child_above(this.rim, panelBox);
+        const placeRim = () => {
+            this.rim.set_position(panelBox.x + this.panel.x, panelBox.y + this.panel.y + this.panel.height - 1);
+            this.rim.width = this.panel.width;
+        };
+        this.signals.connect(this.panel, 'notify::allocation', placeRim);
+        this.signals.connect(panelBox, 'notify::allocation', placeRim);
+        this.signals.connect(this.panel, 'notify::mapped', () => this._applyRim());
+        placeRim();
         this.signals.connect(this.panel, 'destroy', () => {
             this.panelDestroyed = true;
             this.disable();
@@ -74,6 +86,7 @@ export default class PanelModule {
     }
 
     _restoreAppearance() {
+        this.rim.hide();
         this.binding?.sync();
         this.style.restore();
         for (const style of this.foregrounds.values())
@@ -165,6 +178,7 @@ export default class PanelModule {
         if (this.disabled || (this.overviewActive && !this.overviewOpening))
             return;
         if (this.returnPending) {
+            this.rim.hide();
             this.style.set('background-color: transparent; background-image: none; transition-duration: 0ms;');
             for (const style of this.foregrounds.values())
                 style.restore();
@@ -189,10 +203,18 @@ export default class PanelModule {
         }
         this.currentForeground = foreground;
         this.renderedAppearance = {color, foreground, alpha: visibleAlpha};
+        this._applyRim();
         this.style.set(`background-color: rgba(${color.join(',')},${visibleAlpha}); color: ${foreground}; background-image: none; transition-duration: ${this.returning || this.overviewOpening ? 0 : 150}ms;`);
         for (const style of this.foregrounds.values())
             style.set(`color: ${foreground};`);
         this.binding?.surface?.setFade(this.fade.value);
+    }
+
+    _applyRim() {
+        const opacity = Math.round(255 * (this.appearance?.rimAlpha ?? 0) * this.fade.value);
+        this.rim.opacity = opacity;
+        this.rim.visible = opacity > 0 && this.panel.mapped && !this.returnPending &&
+            (!this.overviewActive || this.overviewOpening);
     }
 
     _watch(window) {
@@ -276,10 +298,15 @@ export default class PanelModule {
                     !light && this.color.every(c => c > 180) ? [25, 25, 28] : this.color;
             const alpha = this.settings.get_double(key);
             const foreground = light ? '#202024' : '#ffffff';
+            const rimAlpha = this.settings.get_boolean('panel-liquid-highlight') &&
+                this.settings.get_boolean('blur-enabled') && this.settings.get_boolean('panel-blur') &&
+                this.settings.get_boolean('refraction-enabled') && this.settings.get_string('refraction-style') === 'liquid'
+                ? 0.15 * Math.min(this.settings.get_double('refraction-strength') / 6, 1) *
+                    this.settings.get_double('refraction-highlight') / 100 : 0;
             // A window event often leaves the panel unchanged. Do not restart
             // style/layout/capture work in that case. Theme and child changes
             // still need a full pass, as do Overview transition boundaries.
-            const signature = JSON.stringify([color, foreground, alpha,
+            const signature = JSON.stringify([color, foreground, alpha, rimAlpha,
                 this.settings.get_boolean('panel-blur'), this.settings.get_boolean('panel-static-blur'), this.settings.get_boolean('blur-enabled'),
                 this.settings.get_int('blur-radius'), this.settings.get_double('blur-brightness'),
                 this.settings.get_boolean('blur-filter-enabled'), this.settings.get_string('blur-method'), this.settings.get_string('blur-samples'),
@@ -295,7 +322,7 @@ export default class PanelModule {
                 return;
             this._appearanceSignature = signature;
             this._buttonsDirty = false;
-            this.appearance = {color, foreground, alpha};
+            this.appearance = {color, foreground, alpha, rimAlpha};
             this._applyAppearance();
             this.binding.sync();
             const visit = (actor, depth) => {
@@ -333,6 +360,8 @@ export default class PanelModule {
         this._returnLater = 0;
         this.fade?.remove_transition('value');
         this.signals.clear();
+        this.rim?.destroy();
+        this.rim = null;
         this.fade?.run_dispose();
         this.fade = null;
         this.tracking.clear();
