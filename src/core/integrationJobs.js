@@ -9,6 +9,12 @@ let running = false;
 let waiters = [];
 const worker = Gio.File.new_for_uri(import.meta.url).get_parent().get_child('integrationWorker.js').get_path();
 
+export function syncIntegrations(parts, values, onError) {
+    // Do not take ownership of styles from a deliberately enabled extension.
+    const removeLegacyGtkStyles = !global.settings.get_strv('enabled-extensions').includes('gnome-extended@local');
+    return integrationJob('integrations', {parts, values, removeLegacyGtkStyles}, onError);
+}
+
 function execute(job) {
     return new Promise((resolve, reject) => {
         try {

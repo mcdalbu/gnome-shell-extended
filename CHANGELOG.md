@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.5 — 2026-11-18
+
+- Remove regras GTK residuais do GNOME Extended antigo quando ele está desativado. A limpeza restaura as cores do tema nas laterais do Nautilus e das Configurações e nos menus GTK4, inclusive quando a transparência seletiva já está desligada na inicialização.
+
 ## 1.9.4 — 2026-11-18
 
 - Adiciona o slider **Realce do Liquid** em **Blur → Vidro**. O intervalo é de 0% a 200%, com 100% como padrão. O controle ajusta o brilho das bordas independentemente da distorção.

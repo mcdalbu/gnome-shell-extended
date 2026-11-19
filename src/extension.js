@@ -23,6 +23,14 @@ export default class GnomeShellExtended extends Extension {
                 });
             this._manager.setSuspended(Main.sessionMode.isLocked);
             this._manager.enable();
+            // An already disabled opacity module has no instance to restore GTK.
+            if (!settings.get_boolean('opacity-enabled')) {
+                const manager = this._manager;
+                void import('./core/integrationJobs.js').then(({syncIntegrations}) => {
+                    if (this._manager === manager && !settings.get_boolean('opacity-enabled'))
+                        return syncIntegrations(['gtk'], {}, error => logError(error));
+                }).catch(logError);
+            }
             this._sessionId = Main.sessionMode.connect('updated', () => {
                 this._manager.setSuspended(Main.sessionMode.isLocked);
             });

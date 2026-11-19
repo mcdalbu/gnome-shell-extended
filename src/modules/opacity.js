@@ -3,7 +3,7 @@ import Gio from 'gi://Gio';
 import {readAppearance} from '../core/appearance.js';
 import {Signals} from '../core/render/signals.js';
 import {ResourceScope} from '../core/utils.js';
-import {integrationJob} from '../core/integrationJobs.js';
+import {syncIntegrations} from '../core/integrationJobs.js';
 import {EFFECT_KEYS, WINDOW_KEYS} from '../core/appearanceKeys.js';
 
 export default class OpacityModule {
@@ -94,7 +94,7 @@ export default class OpacityModule {
         const values = Object.fromEntries(['opacity-gtk-files-sidebar', 'opacity-gtk-settings-sidebar',
             'opacity-gtk-menus', 'opacity-ptyxis'].map(key => [key, !restore && this.settings.get_boolean(key)]));
         values['gtk-background-opacity'] = this.settings.get_double('gtk-background-opacity');
-        this.pending = integrationJob('integrations', {parts, values}, error => this.logger.error('Application integration', error));
+        this.pending = syncIntegrations(parts, values, error => this.logger.error('Application integration', error));
         return this.pending;
     }
 

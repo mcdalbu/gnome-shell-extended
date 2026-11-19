@@ -177,6 +177,9 @@ def test():
     Gio.Settings.sync()
     OUTPUT.mkdir(exist_ok=True)
     results = {'gnome-shell': subprocess.check_output(['gnome-shell', '--version'], text=True).strip()}
+    if os.environ.get('GSE_TEST_SETTINGS_OPACITY_ONLY'):
+        from settings_opacity import seed_stale_sidebars
+        restored_css = seed_stale_sidebars(Path(os.environ['XDG_CONFIG_HOME']))
     log = (OUTPUT / f'{VARIANT}-session.log').open('w')
     command = ['gnome-shell', '--headless', '--wayland', '--no-x11',
                f'--virtual-monitor={PRIMARY_MONITOR[0]}x{PRIMARY_MONITOR[1]}']
@@ -247,6 +250,8 @@ def test():
             Main.uiGroup.insert_child_above(scene,global.window_group);''')
         if os.environ.get('GSE_TEST_SETTINGS_OPACITY_ONLY'):
             from settings_opacity import run as test_settings_opacity
+            wait(f'{json.dumps(restored_css)} === new TextDecoder().decode(GLib.file_get_contents(GLib.get_user_config_dir()+"/gtk-4.0/gtk.css")[1])')
+            check('startup-cleans-stale-sidebars', "!cfg.get_boolean('opacity-enabled') && !ext._manager._slots.has('opacity')")
             test_settings_opacity(evaluate, wait, check, screenshot, results, ROOT, log)
             results['passed'] = True
             print(json.dumps(results, indent=2))

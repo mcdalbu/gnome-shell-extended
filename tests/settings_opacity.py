@@ -8,6 +8,21 @@ import subprocess
 import time
 
 
+def seed_stale_sidebars(config):
+    css = config / 'gtk-4.0/gtk.css'
+    css.parent.mkdir(parents=True, exist_ok=True)
+    original = '/* User CSS */\n'
+    blocks = [
+        f'/* BEGIN GNOME Extended: {name} sidebar */\n'
+        f'window.{selector} {{ background-color: transparent; }}\n'
+        f'window.{selector} .sidebar-pane {{ background-color: alpha(@window_bg_color, 0.67); }}\n'
+        f'/* END GNOME Extended: {name} sidebar */'
+        for name, selector in [('Nautilus', 'nautilus-window'), ('Settings', 'gnome-extended-settings')]
+    ]
+    css.write_text(original + ''.join(blocks))
+    return original
+
+
 def run(evaluate, wait, check, screenshot, results, ROOT, log):
     import gi
     gi.require_version('GdkPixbuf', '2.0')

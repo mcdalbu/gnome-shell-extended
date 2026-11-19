@@ -12,7 +12,7 @@ try {
     for (const part of job.parts) {
         try {
             if (part === 'gtk')
-                writeGtkStyle(gtkCss(settings));
+                writeGtkStyle(gtkCss(settings), job.removeLegacyGtkStyles);
             else if (part === 'ptyxis')
                 syncPtyxisOpacity(settings);
             else if (part === 'launcher')

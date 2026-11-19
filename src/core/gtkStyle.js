@@ -23,21 +23,21 @@ window.gse-settings-window .sidebar-pane { background-color: alpha(@window_bg_co
     return rules.join('\n');
 }
 
-export function replaceBlock(original, css) {
-    const start = original.indexOf(BEGIN);
-    const end = original.indexOf(END);
+export function replaceBlock(original, css, begin = BEGIN, finish = END) {
+    const start = original.indexOf(begin);
+    const end = original.indexOf(finish);
     if ((start < 0) !== (end < 0) || (start >= 0 && (end < start ||
-        original.indexOf(BEGIN, start + BEGIN.length) >= 0 || original.indexOf(END, end + END.length) >= 0)))
+        original.indexOf(begin, start + begin.length) >= 0 || original.indexOf(finish, end + finish.length) >= 0)))
         throw new Error('Bloco GTK incompleto ou duplicado; arquivo preservado.');
-    const replacement = css ? `${BEGIN}\n${css}\n${END}` : '';
+    const replacement = css ? `${begin}\n${css}\n${finish}` : '';
     if (start >= 0)
-        return original.slice(0, start) + replacement + original.slice(end + END.length);
+        return original.slice(0, start) + replacement + original.slice(end + finish.length);
     if (!css)
         return original;
     return original + (original && !original.endsWith('\n') ? '\n' : '') + replacement;
 }
 
-export function writeGtkStyle(css) {
+export function writeGtkStyle(css, removeLegacyGtkStyles = false) {
     const directory = GLib.build_filenamev([GLib.get_user_config_dir(), 'gtk-4.0']);
     const file = Gio.File.new_for_path(`${directory}/gtk.css`);
     let original = '';
@@ -50,7 +50,13 @@ export function writeGtkStyle(css) {
         if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
             throw error;
     }
-    const result = replaceBlock(original, css);
+    let result = replaceBlock(original, css);
+    if (removeLegacyGtkStyles) {
+        for (const section of ['Nautilus sidebar', 'Settings sidebar', 'GTK4 context menus']) {
+            result = replaceBlock(result, '', `/* BEGIN GNOME Extended: ${section} */`,
+                `/* END GNOME Extended: ${section} */`);
+        }
+    }
     if (result === original)
         return;
     GLib.mkdir_with_parents(directory, 0o700);

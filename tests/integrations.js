@@ -36,6 +36,22 @@ GLib.file_set_contents(`${directory}/gtk.css`, original);
 writeGtkStyle('popover { color: white; }');
 writeGtkStyle('');
 assert(new TextDecoder().decode(GLib.file_get_contents(`${directory}/gtk.css`)[1]) === original, 'GTK roundtrip');
+const legacySidebars = ['Nautilus sidebar', 'Settings sidebar'].map((sidebar, index) =>
+    `/* BEGIN GNOME Extended: ${sidebar} */\nwindow.${index ? 'gnome-extended-settings' : 'nautilus-window'} { background-color: transparent; }\n/* END GNOME Extended: ${sidebar} */`);
+const legacyMenus = '/* BEGIN GNOME Extended: GTK4 context menus */\npopover.menu { color: white; }\n/* END GNOME Extended: GTK4 context menus */\n';
+const legacyCss = original + legacySidebars.join('') + legacyMenus;
+GLib.file_set_contents(`${directory}/gtk.css`, legacyCss);
+writeGtkStyle('popover { color: white; }');
+writeGtkStyle('');
+assert(new TextDecoder().decode(GLib.file_get_contents(`${directory}/gtk.css`)[1]) === legacyCss,
+    'Preserve styles owned by an enabled legacy extension');
+const migrationErrors = [];
+integrationJob('test', {parts: ['gtk'], values: {}, removeLegacyGtkStyles: true}, error => migrationErrors.push(error.message));
+await integrationsSettled();
+assert(migrationErrors.length === 0, migrationErrors.join('\n'));
+assert(new TextDecoder().decode(GLib.file_get_contents(`${directory}/gtk.css`)[1]) === original + '\n',
+    'Disabled GTK integration removes stale sidebar and menu blocks and preserves unrelated CSS');
+GLib.file_set_contents(`${directory}/gtk.css`, original);
 assert(settingsWindowTemplate('<interface><template class="CcWindow" parent="AdwApplicationWindow"></template></interface>').includes('gse-settings-window'), 'Settings scoped class');
 const overlay = '/tmp/current Settings overlay';
 for (const prefix of [
