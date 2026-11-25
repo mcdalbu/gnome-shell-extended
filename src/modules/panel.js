@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import Meta from 'gi://Meta';
 import Clutter from 'gi://Clutter';
-import Cogl from 'gi://Cogl';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -11,23 +10,6 @@ import {StyleLease} from '../core/style.js';
 import {SurfaceBinding, childSignal} from '../core/actors.js';
 import {PanelGap} from '../core/panelGap.js';
 import {EFFECT_KEYS} from '../core/appearanceKeys.js';
-
-function createRimTexture() {
-    const rows = 64;
-    const pixels = new Uint8Array(rows * 4).fill(255);
-    // Bake the Liquid shader's slope^8 falloff from transparent to bright.
-    for (let row = 0; row < rows; row++)
-        pixels[row * 4 + 3] = Math.round(255 * (row / (rows - 1)) ** 8);
-    const args = [pixels, Cogl.PixelFormat.RGBA_8888, 1, rows, 4];
-    if (Clutter.Image) {
-        const content = new Clutter.Image();
-        content.set_data(...args);
-        return content;
-    }
-    const content = St.ImageContent.new_with_preferred_size(1, rows);
-    content.set_data(global.stage.get_context().get_backend().get_cogl_context(), ...args);
-    return content;
-}
 
 export default class PanelModule {
     constructor({settings, logger}) {
@@ -41,19 +23,6 @@ export default class PanelModule {
 
     enable() {
         this.panel = Main.panel;
-        const panelBox = Main.layoutManager.panelBox;
-        this.rim = new Clutter.Actor({reactive: false, visible: false,
-            content_gravity: Clutter.ContentGravity.RESIZE_FILL});
-        panelBox.get_parent().insert_child_above(this.rim, panelBox);
-        const placeRim = () => {
-            const depth = Math.min(32, this.panel.height / 2, this.panel.width / 2);
-            this.rim.set_position(panelBox.x + this.panel.x, panelBox.y + this.panel.y + this.panel.height - depth);
-            this.rim.set_size(this.panel.width, depth);
-        };
-        this.signals.connect(this.panel, 'notify::allocation', placeRim);
-        this.signals.connect(panelBox, 'notify::allocation', placeRim);
-        this.signals.connect(this.panel, 'notify::mapped', () => this._applyRim());
-        placeRim();
         this.signals.connect(this.panel, 'destroy', () => {
             this.panelDestroyed = true;
             this.disable();
@@ -67,19 +36,24 @@ export default class PanelModule {
         this.fade = new St.Adjustment({actor: Main.uiGroup, lower: 0, upper: 1,
             value: this.overviewActive ? 0 : 1});
         this.signals.connect(this.fade, 'notify::value', () => this._applyAppearance());
+        this.tint = new St.Adjustment({actor: Main.uiGroup, lower: 0, upper: 1});
+        this.signals.connect(this.tint, 'notify::value', () => this._applyAppearance());
+        this.signals.connect(this.panel, 'notify::mapped', () => this._panelMapped());
         this.binding = new SurfaceBinding({box: this.panel, anchor: Main.layoutManager.panelBox,
             settings: this.settings, logger: this.logger,
-            enabled: () => !this.disabled && !this.returnPending && (!this.overviewActive || this.overviewOpening) &&
+            enabled: () => !this.disabled && (!this.returnPending || !!this.openingAppearance) &&
+                (!this.overviewActive || this.overviewOpening) &&
                 this.settings.get_boolean('panel-blur') && this.settings.get_boolean('blur-enabled') &&
-                (this.appearance?.alpha ?? 1) < 1,
-            options: {manageStyle: false, refraction: false, opacity: () => this.appearance?.alpha ?? 1,
-                fade: () => this.fade.value, wallpaper: () => this.settings.get_boolean('panel-static-blur')},
+                this._blurAlpha() < 1,
+            options: {manageStyle: false, refraction: false, topEdgeCapture: true, opacity: () => this._blurAlpha(),
+                fade: () => this._blurFade(), wallpaper: () => this.settings.get_boolean('panel-static-blur')},
         });
         this.interface = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
         this.signals.connect(this.interface, 'changed::color-scheme', () => this.sync(true));
         if (St.Settings.list_properties().some(p => p.name === 'color-scheme'))
             this.signals.connect(St.Settings.get(), 'notify::color-scheme', () => this.sync(true));
         this.queue = this.scope.debounce(this.settings.get_int('resize-debounce-ms'), () => this.sync());
+        this.queueWindow = this.scope.debounce(0, () => this.sync());
         for (const box of [this.panel._leftBox, this.panel._centerBox, this.panel._rightBox]) {
             if (box)
                 this.signals.connect(box, childSignal(box), () => {
@@ -105,7 +79,6 @@ export default class PanelModule {
     }
 
     _restoreAppearance() {
-        this.rim.hide();
         this.binding?.sync();
         this.style.restore();
         for (const style of this.foregrounds.values())
@@ -113,7 +86,10 @@ export default class PanelModule {
     }
 
     _suspendForOverview() {
-        this.openingAppearance = this.renderedAppearance ?? this.appearance;
+        const blur = this._blurFade();
+        this.openingAppearance = this.renderedAppearance ??
+            (this.appearance && {...this.appearance, alpha: 0});
+        this.openingBlur = blur;
         this.overviewActive = true;
         this.overviewOpening = true;
         this.overviewClosing = false;
@@ -143,6 +119,7 @@ export default class PanelModule {
     }
 
     _prepareReturn() {
+        const interruptedOpening = this.overviewOpening && this.openingAppearance;
         const background = Main.layoutManager.overviewGroup.get_theme_node().get_background_color();
         const foreground = this.panel.get_theme_node().get_foreground_color();
         this.overviewColor = [background.red, background.green, background.blue];
@@ -153,13 +130,24 @@ export default class PanelModule {
         this.returnPending = true;
         this.returning = false;
         this.fade.remove_transition('value');
-        this.fade.value = 0;
+        if (interruptedOpening) {
+            this.fade.ease(0, {duration: 250, mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                onComplete: () => {
+                    this.openingAppearance = null;
+                    this._applyAppearance();
+                    this.binding.sync();
+                }});
+        } else {
+            this.fade.value = 0;
+        }
         this._track(false);
         this._applyAppearance();
         this.binding.sync();
     }
 
     _startReturn() {
+        this.fade.remove_transition('value');
+        this.openingAppearance = null;
         this.returnPending = false;
         this.returning = true;
         this.fade.value = 0;
@@ -196,8 +184,8 @@ export default class PanelModule {
     _applyAppearance() {
         if (this.disabled || (this.overviewActive && !this.overviewOpening))
             return;
-        if (this.returnPending) {
-            this.rim.hide();
+        if (this.returnPending && !this.openingAppearance) {
+            this.renderedAppearance = null;
             this.style.set('background-color: transparent; background-image: none; transition-duration: 0ms;');
             for (const style of this.foregrounds.values())
                 style.restore();
@@ -205,8 +193,8 @@ export default class PanelModule {
         }
         if (!this.appearance)
             return;
-        let {color, foreground, alpha} = this.overviewOpening && this.openingAppearance
-            ? this.openingAppearance : this.appearance;
+        let {color, foreground, alpha} = this.openingAppearance ??
+            {...this.appearance, alpha: this.tint.value};
         const progress = this.fade.value;
         let visibleAlpha = alpha * progress;
         if (this.returning) {
@@ -222,20 +210,39 @@ export default class PanelModule {
         }
         this.currentForeground = foreground;
         this.renderedAppearance = {color, foreground, alpha: visibleAlpha};
-        this._applyRim();
-        this.style.set(`background-color: rgba(${color.join(',')},${visibleAlpha}); color: ${foreground}; background-image: none; transition-duration: ${this.returning || this.overviewOpening ? 0 : 150}ms;`);
+        this.style.set(`background-color: rgba(${color.join(',')},${visibleAlpha}); color: ${foreground}; background-image: none; transition-duration: 0ms;`);
         for (const style of this.foregrounds.values())
             style.set(`color: ${foreground};`);
-        this.binding?.surface?.setFade(this.fade.value);
+        const blur = this._blurFade();
+        if (blur !== this.appliedBlur) {
+            this.appliedBlur = blur;
+            this.binding?.surface?.setFade(blur);
+        }
     }
 
-    _applyRim() {
-        const opacity = Math.round(255 * (this.appearance?.rimAlpha ?? 0) * this.fade.value);
-        if (opacity > 0 && !this.rim.content)
-            this.rim.content = createRimTexture();
-        this.rim.opacity = opacity;
-        this.rim.visible = opacity > 0 && this.panel.mapped && !this.returnPending &&
-            (!this.overviewActive || this.overviewOpening);
+    _blurFade() {
+        return this.fade.value * (this.openingAppearance ? this.openingBlur : 1);
+    }
+
+    _blurAlpha() {
+        // Keep the backdrop alive until the animated tint is fully opaque.
+        return this.appearance ? Math.min(this.appearance.alpha, this.tint.value) : 1;
+    }
+
+    _panelMapped() {
+        if (!this.panel.mapped) {
+            this.fullscreenUnmapped = Main.layoutManager.findMonitorForActor(this.panel)?.inFullscreen ??
+                Main.layoutManager.primaryMonitor?.inFullscreen;
+            return;
+        }
+        if (!this.fullscreenUnmapped || Main.overview.visible || Main.layoutManager.primaryMonitor?.inFullscreen)
+            return;
+        this.fullscreenUnmapped = false;
+        this.tint.remove_transition('value');
+        this.tint.value = 0;
+        this.resumeTint = true;
+        this._appearanceSignature = null;
+        this.sync();
     }
 
     _watch(window) {
@@ -245,11 +252,11 @@ export default class PanelModule {
         this.windows.set(window, signals);
         for (const signal of ['notify::maximized-horizontally', 'notify::maximized-vertically',
             'notify::fullscreen', 'notify::minimized', 'workspace-changed'])
-            signals.connect(window, signal, this.queue);
+            signals.connect(window, signal, this.queueWindow);
         signals.connect(window, 'unmanaged', () => {
             signals.clear();
             this.windows.delete(window);
-            this.queue();
+            this.queueWindow();
         });
     }
 
@@ -265,11 +272,11 @@ export default class PanelModule {
             return;
         this.tracking.connect(global.display, 'window-created', (_display, window) => {
             this._watch(window);
-            this.queue();
+            this.queueWindow();
         });
-        this.tracking.connect(global.display, 'window-entered-monitor', this.queue);
-        this.tracking.connect(global.display, 'window-left-monitor', this.queue);
-        this.tracking.connect(global.workspace_manager, 'active-workspace-changed', this.queue);
+        this.tracking.connect(global.display, 'window-entered-monitor', this.queueWindow);
+        this.tracking.connect(global.display, 'window-left-monitor', this.queueWindow);
+        this.tracking.connect(global.workspace_manager, 'active-workspace-changed', this.queueWindow);
         for (const actor of global.get_window_actors())
             this._watch(actor.get_meta_window());
     }
@@ -319,23 +326,16 @@ export default class PanelModule {
                     !light && this.color.every(c => c > 180) ? [25, 25, 28] : this.color;
             const alpha = this.settings.get_double(key);
             const foreground = light ? '#202024' : '#ffffff';
-            const rimAlpha = this.settings.get_boolean('panel-liquid-highlight') &&
-                this.settings.get_boolean('blur-enabled') && this.settings.get_boolean('panel-blur') &&
-                this.settings.get_boolean('refraction-enabled') && this.settings.get_string('refraction-style') === 'liquid'
-                ? 0.15 * Math.min(this.settings.get_double('refraction-strength') / 6, 1) *
-                    this.settings.get_double('refraction-highlight') / 100 : 0;
             // A window event often leaves the panel unchanged. Do not restart
             // style/layout/capture work in that case. Theme and child changes
             // still need a full pass, as do Overview transition boundaries.
-            const signature = JSON.stringify([color, foreground, alpha, rimAlpha,
+            const signature = JSON.stringify([color, foreground, alpha,
                 this.settings.get_boolean('panel-blur'), this.settings.get_boolean('panel-static-blur'), this.settings.get_boolean('blur-enabled'),
                 this.settings.get_int('blur-radius'), this.settings.get_double('blur-brightness'),
                 this.settings.get_boolean('blur-filter-enabled'), this.settings.get_string('blur-method'), this.settings.get_string('blur-samples'),
                 this.settings.get_string('blur-render-area'),
                 this.settings.get_string('blur-resolution'), this.settings.get_string('blur-refresh-rate'),
                 this.settings.get_int('blur-iterations'), this.settings.get_int('blur-kawase-iterations'),
-                this.settings.get_boolean('refraction-enabled'), this.settings.get_double('refraction-strength'),
-                this.settings.get_string('refraction-style'),
                 this.settings.get_boolean('frosted-glass-enabled'),
                 this.overviewActive, this.overviewOpening, this.overviewClosing,
                 this.returnPending, this.returning]);
@@ -343,7 +343,18 @@ export default class PanelModule {
                 return;
             this._appearanceSignature = signature;
             this._buttonsDirty = false;
-            this.appearance = {color, foreground, alpha, rimAlpha};
+            const initial = !this.appearance;
+            const targetChanged = this.appearance?.alpha !== alpha || this.resumeTint;
+            this.resumeTint = false;
+            this.appearance = {color, foreground, alpha};
+            if (initial) {
+                this.tint.value = alpha;
+            } else if (targetChanged) {
+                this.tint.remove_transition('value');
+                if (this.tint.value !== alpha)
+                    this.tint.ease(alpha, {duration: 250, mode: Clutter.AnimationMode.EASE_IN_OUT_CUBIC,
+                        onComplete: () => this.binding.sync()});
+            }
             this._applyAppearance();
             this.binding.sync();
             const visit = (actor, depth) => {
@@ -380,9 +391,10 @@ export default class PanelModule {
             global.compositor.get_laters().remove(this._returnLater);
         this._returnLater = 0;
         this.fade?.remove_transition('value');
+        this.tint?.remove_transition('value');
         this.signals.clear();
-        this.rim?.destroy();
-        this.rim = null;
+        this.tint?.run_dispose();
+        this.tint = null;
         this.fade?.run_dispose();
         this.fade = null;
         this.tracking.clear();

@@ -1,13 +1,13 @@
 """Panel edges must retain coverage, including inherited fractional clips."""
 import time
-from PIL import Image, ImageStat
+from PIL import Image, ImageChops, ImageStat
 
 
 def run(evaluate, wait, check, screenshot, results):
     evaluate('''globalThis.edgeSaved=Object.fromEntries([
-        'panel-blur','panel-opacity','panel-auto-opacity','panel-style','panel-liquid-highlight',
+        'panel-blur','panel-opacity','panel-auto-opacity','panel-style',
         'blur-enabled','blur-filter-enabled','blur-method','blur-radius','blur-brightness',
-        'refraction-enabled','refraction-style','refraction-strength','refraction-highlight','frosted-glass-enabled'
+        'refraction-enabled','refraction-style','refraction-strength','frosted-glass-enabled'
         ].map(k=>[k,cfg.get_value(k)]));
         cfg.set_boolean('panel-auto-opacity',false);cfg.set_string('panel-style','dark');
         cfg.set_double('panel-opacity',.2);cfg.set_boolean('panel-blur',true);
@@ -72,26 +72,42 @@ def run(evaluate, wait, check, screenshot, results):
         # uses zero brightness to isolate coverage from its edge highlight.
         assert max(values)-min(values) < 3, (method, values)
         assert clear-min(values) > 70, (method, clear, values)
-    evaluate("""Main.layoutManager.panelBox.remove_clip();
-        cfg.set_boolean('panel-liquid-highlight',true);
-        cfg.set_string('refraction-style','liquid');cfg.set_boolean('refraction-enabled',true);
-        cfg.set_double('refraction-highlight',0);""")
-    highlights = []
-    profiles = []
-    samples = [bottom - max(1, round(offset * scale)) for offset in [1, 2, 4, 8, height / 2]]
-    for intensity in [0, 100, 200]:
-        evaluate(f"cfg.set_double('refraction-highlight',{intensity})")
-        time.sleep(.3)
-        shot = Image.open(screenshot(f'panel-liquid-highlight-{intensity}')).convert('RGB')
-        highlights.append(ImageStat.Stat(shot.crop((left, bottom-1, right, bottom))).mean[0])
-        profiles.append([ImageStat.Stat(shot.crop((left, row, right, row+1))).mean[0] for row in samples])
-    assert highlights[0]+2 < highlights[1] < highlights[2]-2, highlights
-    gradient = [b-a for a, b in zip(profiles[0], profiles[2])]
-    assert gradient[0] > gradient[1] > gradient[2] > gradient[3] >= gradient[4], gradient
-    assert gradient[2] > 2 and gradient[4] < 2, gradient
-    results['panel-liquid-highlight-gradient'] = gradient
-    results['panel-liquid-highlight-red'] = highlights
-    check('panel-liquid-highlight-keeps-layout',
-          f'Main.panel.height==={height} && edgePanel.binding.surface._state.glassConfig.strength===0')
+    evaluate('''Main.layoutManager.panelBox.remove_clip();
+        cfg.set_int('blur-radius',8);cfg.set_double('blur-brightness',1);
+        for(let y=0;y<180;y+=4) edgeBackdrop.add_child(new St.Widget({y,width:global.stage.width,height:2,
+            style:'background-color:black;'}));''')
+    time.sleep(.3)
+    evaluate('''globalThis.edgeCapture=()=>[...edgePanel.binding.surface._state.captures.values()][0];
+        globalThis.edgeHeight=()=>edgeCapture().effect._buffers.get('view')?.height;
+        globalThis.probePanelStrip=()=>{
+            globalThis.edgeStrip=null;
+            const id=global.stage.connect('after-paint',(_stage,view)=>{
+                if(view!==edgeCapture().view)return;
+                global.stage.disconnect(id);
+                const scale=view.get_scale();
+                const data=edgeProbe.read(view.get_framebuffer(),Math.round(Main.panel.width*.25*scale),
+                    0,1,Math.round(Main.panel.height*scale)).get_data();
+                edgeStrip=Array.from(data).filter((_value,i)=>i%4===0);
+            });global.stage.queue_redraw();
+        };''')
+    compact = evaluate('edgeHeight()')
+    evaluate('probePanelStrip()')
+    wait('edgeStrip')
+    reduced = evaluate('edgeStrip')
+    reduced_shot = Image.open(screenshot('panel-compact-capture')).convert('RGB')
+    evaluate('edgePanel.binding.surface._state.topEdgeCapture=false;global.stage.queue_redraw()')
+    wait(f'edgeHeight()>{compact}')
+    expanded = evaluate('edgeHeight()')
+    evaluate('probePanelStrip()')
+    wait('edgeStrip')
+    original = evaluate('edgeStrip')
+    delta = max(abs(a-b) for a, b in zip(reduced, original))
+    assert delta <= 2, (delta, compact, expanded, reduced, original)
+    original_shot = Image.open(screenshot('panel-expanded-capture')).convert('RGB')
+    lines = (left, top, right, bottom)
+    shot_delta = ImageChops.difference(reduced_shot.crop(lines), original_shot.crop(lines))
+    assert max(hi for _, hi in shot_delta.getextrema()) <= 2, shot_delta.getextrema()
+    results['panel-capture-height-pixels'] = {'previous': expanded, 'compact': compact}
+    evaluate('edgePanel.binding.surface._state.topEdgeCapture=true')
     check('panel-edge-foreground-opacity', 'Main.panel.opacity===255 && Main.panel._centerBox.opacity===255')
     evaluate('if(edgeSavedClip)Main.layoutManager.panelBox.set_clip(...edgeSavedClip);else Main.layoutManager.panelBox.remove_clip();edgeBackdrop.destroy();for(const [k,v] of Object.entries(edgeSaved))cfg.set_value(k,v)')

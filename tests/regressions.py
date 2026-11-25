@@ -372,6 +372,7 @@ def test_panel_rendered_fade(evaluate, wait, results):
             let variance=0;for(let i=0;i<bytes.length;i+=4)for(let c=0;c<3;c++)variance+=(bytes[i+c]-mean[c])**2/(bytes.length/4);
             const panel=ext._manager._slots.get('panel').instance;
             panelPixelFrames.push({value:panel.fade.value,detail:Math.sqrt(variance),mean,
+                radius:panel.binding.surface?._state.effect?.radius,
                 alpha:Main.panel.get_theme_node().get_background_color().alpha,
                 overview:Main.overview.visible,returning:!!panel.returning,pending:!!panel.returnPending,
                 time:panelPixelHiddenAt?(GLib.get_monotonic_time()-panelPixelHiddenAt)/1000:-1});
@@ -387,6 +388,8 @@ def test_panel_rendered_fade(evaluate, wait, results):
     visible=[f for f in frames if f['overview']]
     assert max(abs(a-b) for a,b in zip(closed[0]['mean'],visible[-1]['mean']))<4, frames
     assert any(0.2<f['value']<0.8 and 171<f['alpha']<250 for f in closed), frames
+    radii = {f['radius'] for f in closed if 0.1 < f['value'] <= 1 and 'radius' in f}
+    assert len(radii) == 1 and min(radii) > 0, radii
     assert 200<=closed[-1]['time']<=400 and abs(closed[-1]['alpha']-171)<=2, frames
     evaluate("cfg.set_boolean('panel-auto-opacity',fadePixelSaved[0]);cfg.set_double('panel-opacity',fadePixelSaved[1]);cfg.set_string('blur-backend',fadePixelSaved[2]);cfg.set_double('blur-brightness',fadePixelSaved[3]);for(const child of scene.get_children()){child.y=32;child.height=968}")
 

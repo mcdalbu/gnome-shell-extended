@@ -125,8 +125,18 @@ export function syncBackdropCapture(state, view, backend, radiusProperty, radius
     const viewHeight = Math.round(layout.height * scale);
     const captureWidth = Math.min(viewWidth,
         Math.max(minimum, (Math.ceil((width * scale + 2 * padding) / tile) + 1) * tile));
-    const captureHeight = Math.min(viewHeight,
-        Math.max(minimum, (Math.ceil((height * scale + 2 * padding) / tile) + 1) * tile));
+    const inset = 1 / 256;
+    // A panel flush with the top of its view can only sample downwards.
+    // Keep the same tile phase and lower margin, omitting the offscreen
+    // upper margin and the extra tile reserved for moving surfaces.
+    const atTopEdge = compact && state.topEdgeCapture && Math.abs(y - layout.y) < 1e-6;
+    const movingHeightInTiles = Math.ceil((height * scale + 2 * padding) / tile) + 1;
+    const heightInTiles = atTopEdge ? Math.ceil((height * scale + padding) / tile) : movingHeightInTiles;
+    const captureHeight = Math.min(viewHeight, Math.max(minimum, heightInTiles * tile));
+    // A stage screenshot can use a different scale from the panel's view.
+    // Preserve its original downsampling grid in that separate framebuffer.
+    capture.effect.screenshotHeight = atTopEdge
+        ? (Math.min(viewHeight, movingHeightInTiles * tile) - 2 * inset) / scale : 0;
     // BACKGROUND blits must stay inside the source framebuffer. Shift a
     // constant-sized capture inward at screen edges instead of sampling past
     // the bottom/right edge or shrinking its texture as the dock slides.
@@ -140,7 +150,6 @@ export function syncBackdropCapture(state, view, backend, radiusProperty, radius
     capture.geometry = geometry;
     // Stay just inside the integer capture box: float transforms must not
     // make the backend's outward rounding add a whole source pixel.
-    const inset = 1 / 256;
     capture.actor.set_position((layout.x + (left + inset) / scale - x) / scaleX,
         (layout.y + (top + inset) / scale - y) / scaleY);
     capture.actor.set_size((right - left - 2 * inset) / scale / scaleX,

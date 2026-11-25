@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0 — 2026-11-25
+
+- Reduz a região capturada pelo blur da barra superior quando ela está alinhada ao topo do monitor. Mantém a grade de amostragem das capturas de tela com escala diferente.
+- Mantém o raio do desfoque fixo durante a animação do painel e anima a composição do fundo, permitindo respeitar o limite de atualização.
+- Suaviza as transições de opacidade da barra ao maximizar, voltar do Overview e sair de tela cheia.
+- Remove a opção de realce do Liquid no painel e mostra nas preferências os controles relevantes ao método de blur e ao modo de opacidade selecionados.
+
 ## 1.9.7 — 2026-11-25
 
 - O realce opcional do Liquid na barra superior agora perde intensidade gradualmente da borda inferior para dentro do painel.

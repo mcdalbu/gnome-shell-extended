@@ -516,14 +516,26 @@ def test():
                 evaluate('switcher.fadeAndDestroy()')
                 time.sleep(0.25)
             evaluate('switcherKeyboard.notify_keyval(GLib.get_monotonic_time(),Clutter.KEY_Alt_L,Clutter.KeyState.RELEASED)')
-            evaluate("globalThis.policyWindow=global.get_window_actors().find(a=>a.meta_window.get_title()==='GSE policy test').meta_window;policyWindow.maximize()")
+            evaluate("""globalThis.policyWindow=global.get_window_actors().find(a=>a.meta_window.get_title()==='GSE policy test').meta_window;
+                globalThis.policyPanel=ext._manager._slots.get('panel').instance;
+                globalThis.policyAlphas=[];
+                globalThis.policyProbe=policyPanel.tint.connect('notify::value',()=>policyAlphas.push(policyPanel.tint.value));
+                policyWindow.maximize();""")
             wait("Main.panel.get_style().includes(',1);')")
             check('panel-maximized-policy', 'policyWindow.maximized_horizontally && policyWindow.maximized_vertically')
+            check('panel-maximized-fades', 'policyAlphas.some(alpha=>alpha>.5 && alpha<.95)')
+            evaluate('policyPanel.tint.disconnect(policyProbe)')
             from panel_gap import test_panel_gap
             test_panel_gap(evaluate, wait, check, screenshot, results)
             evaluate('policyWindow.make_fullscreen()')
             wait("Main.panel.get_style().includes(',0);')")
             check('panel-fullscreen-policy', 'policyWindow.is_fullscreen()')
+            evaluate("""policyPanel=ext._manager._slots.get('panel').instance;
+                policyAlphas=[];policyProbe=policyPanel.tint.connect('notify::value',()=>policyAlphas.push(policyPanel.tint.value));
+                policyWindow.unmake_fullscreen();""")
+            wait('Main.panel.mapped && !policyWindow.is_fullscreen() && policyPanel.appearance.alpha>0 && policyPanel.tint.value===policyPanel.appearance.alpha')
+            check('panel-fullscreen-exit-fades', 'policyAlphas.some(alpha=>alpha>.05 && alpha<.4)')
+            evaluate('policyPanel.tint.disconnect(policyProbe)')
         finally:
             window_process.terminate()
             window_process.wait(timeout=5)

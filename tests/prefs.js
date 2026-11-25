@@ -70,6 +70,10 @@ for (const key of settings.settings_schema.list_keys()) {
     settings.reset(key);
 }
 assert(controls.has('opacity-gtk-settings-sidebar'), 'Settings integration control');
+settings.set_boolean('panel-auto-opacity', false);
+assert(!controls.get('panel-maximized-opacity').visible && !controls.get('panel-fullscreen-opacity').visible,
+    'Panel window-specific opacities are hidden in manual mode');
+settings.reset('panel-auto-opacity');
 for (const enabled of [false, true]) {
     settings.set_boolean('panel-blur', enabled);
     assert(controls.get('panel-static-blur').sensitive === enabled, 'Static source follows panel effects');
@@ -85,6 +89,8 @@ for (const blur of [false, true]) {
         assert(controls.get('refraction-style').sensitive === distortion, 'Glass model follows distortion toggle');
         assert(controls.get('refraction-enabled').sensitive, 'Distortion toggle always available');
         assert(controls.get('blur-filter-enabled').sensitive, 'Blur toggle always available');
+        assert(controls.get('blur-resolution').visible === blur, 'Resolution only appears for blur');
+        assert(controls.get('blur-refresh-rate').visible === (blur || distortion), 'Refresh only appears for capture effects');
     }
 }
 assert(controls.get('refraction-style').model.get_string(1)==='Liquid', 'Liquid display name');

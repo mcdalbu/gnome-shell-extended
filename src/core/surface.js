@@ -32,7 +32,7 @@ export class Surface {
         this.style = options.manageStyle === false ? null : new StyleLease(box);
         this._destroyed = false;
         this._generation = 0;
-        this._state = {captures: new Map()};
+        this._state = {captures: new Map(), topEdgeCapture: options.topEdgeCapture};
         this._framesActive = false;
         this._paintedViews = new Set();
         try {
@@ -384,10 +384,11 @@ export class Surface {
         // Dock decoration fades through actor opacity. Keep its filter/grid
         // stable during that fade; only slide visibility changes its radius.
         let fade = this.options.dock ? 1 : this.box.get_paint_opacity() / 255;
-        // BACKGROUND effects can ignore inherited paint opacity. Ramp their
-        // filter and brightness too, so the first nonzero frame is not fully
-        // frosted while only the CSS tint is still transparent.
-        fade *= this.options.fade?.() ?? 1;
+        // The panel already fades the composed backdrop. Animating its
+        // kernel too invalidates the filtered texture at every frame and
+        // bypasses half/quarter rate. Legacy effects still need this ramp.
+        if (this.backend.name !== 'combined')
+            fade *= this.options.fade?.() ?? 1;
         if (this.options.dock) {
             const {x, y, width, height} = this._snapshot();
             if (width > 0 && height > 0) {

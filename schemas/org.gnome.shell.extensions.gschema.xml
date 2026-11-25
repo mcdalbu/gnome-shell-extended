@@ -305,11 +305,6 @@
       <summary>Blur behind the top panel</summary>
       <description>Blur translucent panel backgrounds outside Overview. Opaque and hidden panels release their captures.</description>
     </key>
-    <key name="panel-liquid-highlight" type="b">
-      <default>false</default>
-      <summary>Liquid highlight along the bottom of the top panel</summary>
-      <description>Draw an inset highlight when Liquid distortion is enabled. Uses the Liquid highlight intensity.</description>
-    </key>
     <key name="panel-static-blur" type="b">
       <default>false</default>
       <summary>Static wallpaper blur for the top panel</summary>

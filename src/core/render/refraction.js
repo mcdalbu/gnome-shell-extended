@@ -152,6 +152,9 @@ export const RefractionEffect = GObject.registerClass({
 
     vfunc_paint(_node, context, _flags) {
         const actor = this.get_actor();
+        const opacity = actor.get_paint_opacity();
+        if (opacity === 0)
+            return;
         const framebuffer = context.get_framebuffer();
         const views = actor.peek_stage_views();
         const view = views.find(v => v.get_framebuffer() === framebuffer);
@@ -167,7 +170,8 @@ export const RefractionEffect = GObject.registerClass({
         const left = Math.max(0, Math.floor((x - layout.x) * scale));
         const top = Math.max(0, Math.floor((y - layout.y) * scale));
         const right = Math.min(framebuffer.get_width(), Math.ceil((x + w - layout.x) * scale));
-        const bottom = Math.min(framebuffer.get_height(), Math.ceil((y + h - layout.y) * scale));
+        const captureHeight = view ? h : Math.max(h, this.screenshotHeight ?? 0);
+        const bottom = Math.min(framebuffer.get_height(), Math.ceil((y + captureHeight - layout.y) * scale));
         const width = right - left;
         const height = bottom - top;
         if (width <= 0 || height <= 0 || w <= 0 || h <= 0)
@@ -237,13 +241,12 @@ export const RefractionEffect = GObject.registerClass({
                     float corner = min(glassCorner, min(halfGlass.x, halfGlass.y));
                     vec2 local = p-glassBounds.xy;
                     vec2 arc = abs(local-halfGlass)-halfGlass+corner;
-                    float distance = glassDistance(local-halfGlass, halfGlass, corner);
                     // Plain blur follows native rectangle pixel coverage.
                     // Liquid keeps the original 1.9.0 antialiased edge profile.
                     float coverage = all(greaterThanEqual(local, vec2(0.0))) &&
                         all(lessThan(local, glassBounds.zw)) ? 1.0 : 0.0;
                     if (glassLiquid > 0.5 || (corner > 0.0 && arc.x > 0.0 && arc.y > 0.0))
-                        coverage = clamp(0.5-distance*glassScale, 0.0, 1.0);
+                        coverage = clamp(0.5-glassDistance(local-halfGlass, halfGlass, corner)*glassScale, 0.0, 1.0);
                     cogl_color_out = vec4(color.rgb * glassBrightness, 1.0) * glassOpacity * coverage;
                     `);
                 }
@@ -303,7 +306,7 @@ export const RefractionEffect = GObject.registerClass({
                 (this.glassConfig?.strengthRatio ?? 1) > 0 ? 1 : 0);
             uniform('glassBrightness', this.brightness);
             uniform('glassHighlight', this.glassConfig?.highlight ?? 1);
-            uniform('glassOpacity', actor.get_paint_opacity() / 255);
+            uniform('glassOpacity', opacity / 255);
             framebuffer.draw_textured_rectangle(pipeline,
                 (layout.x + left / scale - x) * actor.width / w,
                 (layout.y + top / scale - y) * actor.height / h,

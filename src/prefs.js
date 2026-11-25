@@ -113,30 +113,34 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         const syncEffects = () => {
             for (const control of blurControls)
                 control.sensitive = settings.get_boolean('blur-filter-enabled');
-            samplesControl.sensitive = settings.get_boolean('blur-filter-enabled') && settings.get_string('blur-method') === 'fast-gaussian';
-            iterationsControl.sensitive = samplesControl.sensitive;
-            kawaseIterationsControl.sensitive = settings.get_boolean('blur-filter-enabled') && settings.get_string('blur-method') === 'kawase';
+            samplesControl.visible = samplesControl.sensitive =
+                settings.get_boolean('blur-filter-enabled') && settings.get_string('blur-method') === 'fast-gaussian';
+            iterationsControl.visible = iterationsControl.sensitive = samplesControl.sensitive;
+            kawaseIterationsControl.visible = kawaseIterationsControl.sensitive =
+                settings.get_boolean('blur-filter-enabled') && settings.get_string('blur-method') === 'kawase';
             strengthControl.sensitive = settings.get_boolean('refraction-enabled');
             glassStyleControl.sensitive = strengthControl.sensitive;
-            highlightControl.sensitive = strengthControl.sensitive && settings.get_string('refraction-style') === 'liquid';
+            highlightControl.visible = highlightControl.sensitive =
+                strengthControl.sensitive && settings.get_string('refraction-style') === 'liquid';
+            resolutionControl.visible = settings.get_boolean('blur-filter-enabled') && settings.get_int('blur-radius') > 0;
+            const hasCapture = resolutionControl.visible ||
+                (strengthControl.sensitive && settings.get_double('refraction-strength') > 0);
+            renderAreaControl.visible = refreshControl.visible = hasCapture;
         };
-        for (const key of ['blur-filter-enabled', 'blur-method', 'refraction-enabled', 'refraction-style'])
-            connections.push(settings.connect(`changed::${key}`, syncEffects));
-        syncEffects();
         const performance = group(blur, 'Recursos',
-            'Kawase reduz o trabalho do filtro. O custo total também depende da captura e da composição do Shell. Blur e distorção desligados liberam as capturas do fundo.');
-        choice(performance, 'blur-render-area', 'Área de redesenho do blur', ['monitor', 'elements'],
+            'Para reduzir o custo, combine Kawase com uma resolução menor ou limite a frequência de atualização. A textura fosca pode ser usada sem capturar o fundo.');
+        const renderAreaControl = choice(performance, 'blur-render-area', 'Área de redesenho do fundo', ['monitor', 'elements'],
             ['Monitor (compatível)', 'Elementos (experimental)'],
             'Atualiza os elementos e suas margens pelo redesenho nativo, podendo atrasar o blur em um frame. Usa o modo compatível durante mover/redimensionar janelas e quando indisponível.');
-        choice(performance, 'blur-resolution', 'Resolução do filtro', ['auto', 'half', 'quarter'],
+        const resolutionControl = choice(performance, 'blur-resolution', 'Resolução do filtro', ['auto', 'half', 'quarter'],
             ['Automática', 'Metade por eixo', 'Um quarto por eixo'],
             'Texturas menores economizam trabalho do filtro, com perda de detalhes. Aplica-se a Box, Gaussian e Kawase, incluindo o papel de parede quando suportado; a saída estática fica em cache.');
-        choice(performance, 'blur-refresh-rate', 'Atualização do fundo dinâmico', ['100', '50', '25'],
+        const refreshControl = choice(performance, 'blur-refresh-rate', 'Atualização do fundo dinâmico', ['100', '50', '25'],
             ['100% — full rate', '50% — half rate', '25% — quarter rate'],
             'Limite relativo a cada monitor: em 60 Hz, até 60, 30 ou 15 atualizações por segundo. A interface mantém sua frequência normal; capturas de tela são atualizadas integralmente.');
-        number(performance, 'resize-debounce-ms', 'Debounce de eventos (ms)', 0, 1000, 10,
-            'Aplicado na próxima ativação do módulo; animações acompanham os frames do Shell.');
-        toggle(performance, 'debug-logging', 'Logs de depuração', 'Aplicado na próxima ativação da extensão.');
+        for (const key of ['blur-filter-enabled', 'blur-method', 'blur-radius', 'refraction-enabled', 'refraction-style', 'refraction-strength'])
+            connections.push(settings.connect(`changed::${key}`, syncEffects));
+        syncEffects();
 
         const panel = page('panel', 'Painel', 'view-more-symbolic');
         toggle(group(panel, 'Barra superior'), 'panel-enabled', 'Ativar painel adaptativo');
@@ -144,18 +148,19 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             'No Overview, o estilo personalizado é suspenso. Após o Overview fechar, o fundo passa da cor opaca do Overview à transparência configurada em 250 ms; textos e ícones permanecem opacos.');
         choice(panelOptions, 'panel-style', 'Cor do fundo', ['theme', 'light', 'dark'], ['Do tema', 'Clara', 'Escura']);
         toggle(panelOptions, 'panel-blur', 'Efeitos no fundo da barra', 'Usa os parâmetros da aba Blur. Suspenso no Overview e quando o fundo está opaco.');
-        toggle(panelOptions, 'panel-liquid-highlight', 'Realce do Liquid na borda inferior',
-            'O brilho diminui gradualmente da borda para dentro da barra e usa a intensidade definida em Blur → Vidro.');
         const staticPanelControl = toggle(panelOptions, 'panel-static-blur', 'Blur estático do papel de parede',
             'Usa somente o papel de parede e guarda o efeito em cache. Janelas atrás da barra não atualizam o blur.');
         const syncStaticPanel = () => { staticPanelControl.sensitive = settings.get_boolean('panel-blur'); };
         connections.push(settings.connect('changed::panel-blur', syncStaticPanel));
         syncStaticPanel();
         toggle(panelOptions, 'panel-remove-gap', 'Remover lacuna entre a barra e janelas maximizadas', 'Posiciona o topo da janela 1 px sob a borda inferior da barra para fechar a junção, sem aumentar o painel.');
-        toggle(panelOptions, 'panel-auto-opacity', 'Opacidade automática', 'Considera as janelas do workspace no monitor da barra.');
+        toggle(panelOptions, 'panel-auto-opacity', 'Opacidade automática', 'Suaviza as mudanças de opacidade conforme as janelas no monitor da barra.');
         number(panelOptions, 'panel-opacity', 'Opacidade normal', 0, 1, 0.05);
-        number(panelOptions, 'panel-maximized-opacity', 'Com janela maximizada', 0, 1, 0.05);
-        number(panelOptions, 'panel-fullscreen-opacity', 'Com janela em tela cheia', 0, 1, 0.05);
+        for (const [key, title] of [['panel-maximized-opacity', 'Com janela maximizada'],
+            ['panel-fullscreen-opacity', 'Com janela em tela cheia']]) {
+            const row = number(panelOptions, key, title, 0, 1, 0.05);
+            settings.bind('panel-auto-opacity', row, 'visible', Gio.SettingsBindFlags.GET);
+        }
 
         const docks = page('dock', 'Dock', 'view-app-grid-symbolic');
         toggle(group(docks, 'Integração com docks', 'Detecta Dash to Dock e Ubuntu Dock por seus atores, sem importar outra extensão.'),
@@ -190,6 +195,9 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             'Adiciona uma classe CSS via overlay do recurso CcWindow e lançador D-Bus reversível do usuário. Requer gresource e reinício do aplicativo.');
 
         const maintenance = group(blur, `${this.metadata.name} ${this.metadata['version-name'] ?? this.metadata.version}`, 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
+        number(maintenance, 'resize-debounce-ms', 'Agrupar eventos de layout (ms)', 0, 1000, 10,
+            'Aplicado na próxima ativação do módulo.');
+        toggle(maintenance, 'debug-logging', 'Logs de depuração', 'Aplicado na próxima ativação da extensão.');
         const reset = new Adw.ActionRow({title: 'Restaurar configurações da extensão'});
         const button = new Gtk.Button({label: 'Restaurar', valign: Gtk.Align.CENTER});
         button.connect('clicked', () => {
