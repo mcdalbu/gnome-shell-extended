@@ -77,12 +77,19 @@ def run(evaluate, wait, check, screenshot, results):
         cfg.set_string('refraction-style','liquid');cfg.set_boolean('refraction-enabled',true);
         cfg.set_double('refraction-highlight',0);""")
     highlights = []
+    profiles = []
+    samples = [bottom - max(1, round(offset * scale)) for offset in [1, 2, 4, 8, height / 2]]
     for intensity in [0, 100, 200]:
         evaluate(f"cfg.set_double('refraction-highlight',{intensity})")
         time.sleep(.3)
         shot = Image.open(screenshot(f'panel-liquid-highlight-{intensity}')).convert('RGB')
         highlights.append(ImageStat.Stat(shot.crop((left, bottom-1, right, bottom))).mean[0])
+        profiles.append([ImageStat.Stat(shot.crop((left, row, right, row+1))).mean[0] for row in samples])
     assert highlights[0]+2 < highlights[1] < highlights[2]-2, highlights
+    gradient = [b-a for a, b in zip(profiles[0], profiles[2])]
+    assert gradient[0] > gradient[1] > gradient[2] > gradient[3] >= gradient[4], gradient
+    assert gradient[2] > 2 and gradient[4] < 2, gradient
+    results['panel-liquid-highlight-gradient'] = gradient
     results['panel-liquid-highlight-red'] = highlights
     check('panel-liquid-highlight-keeps-layout',
           f'Main.panel.height==={height} && edgePanel.binding.surface._state.glassConfig.strength===0')

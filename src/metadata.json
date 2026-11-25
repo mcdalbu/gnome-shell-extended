@@ -12,8 +12,8 @@
     "50",
     "51"
   ],
-  "version": 41,
-  "version-name": "1.9.6",
+  "version": 42,
+  "version-name": "1.9.7",
   "settings-schema": "org.gnome.shell.extensions.gnome-shell-extended",
   "session-modes": [
     "user",

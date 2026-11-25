@@ -145,7 +145,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         choice(panelOptions, 'panel-style', 'Cor do fundo', ['theme', 'light', 'dark'], ['Do tema', 'Clara', 'Escura']);
         toggle(panelOptions, 'panel-blur', 'Efeitos no fundo da barra', 'Usa os parâmetros da aba Blur. Suspenso no Overview e quando o fundo está opaco.');
         toggle(panelOptions, 'panel-liquid-highlight', 'Realce do Liquid na borda inferior',
-            'Aparece quando a distorção Liquid está ativa e usa a intensidade definida em Blur → Vidro.');
+            'O brilho diminui gradualmente da borda para dentro da barra e usa a intensidade definida em Blur → Vidro.');
         const staticPanelControl = toggle(panelOptions, 'panel-static-blur', 'Blur estático do papel de parede',
             'Usa somente o papel de parede e guarda o efeito em cache. Janelas atrás da barra não atualizam o blur.');
         const syncStaticPanel = () => { staticPanelControl.sensitive = settings.get_boolean('panel-blur'); };

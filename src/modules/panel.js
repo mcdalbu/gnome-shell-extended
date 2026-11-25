@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import Meta from 'gi://Meta';
 import Clutter from 'gi://Clutter';
+import Cogl from 'gi://Cogl';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -10,6 +11,23 @@ import {StyleLease} from '../core/style.js';
 import {SurfaceBinding, childSignal} from '../core/actors.js';
 import {PanelGap} from '../core/panelGap.js';
 import {EFFECT_KEYS} from '../core/appearanceKeys.js';
+
+function createRimTexture() {
+    const rows = 64;
+    const pixels = new Uint8Array(rows * 4).fill(255);
+    // Bake the Liquid shader's slope^8 falloff from transparent to bright.
+    for (let row = 0; row < rows; row++)
+        pixels[row * 4 + 3] = Math.round(255 * (row / (rows - 1)) ** 8);
+    const args = [pixels, Cogl.PixelFormat.RGBA_8888, 1, rows, 4];
+    if (Clutter.Image) {
+        const content = new Clutter.Image();
+        content.set_data(...args);
+        return content;
+    }
+    const content = St.ImageContent.new_with_preferred_size(1, rows);
+    content.set_data(global.stage.get_context().get_backend().get_cogl_context(), ...args);
+    return content;
+}
 
 export default class PanelModule {
     constructor({settings, logger}) {
@@ -24,12 +42,13 @@ export default class PanelModule {
     enable() {
         this.panel = Main.panel;
         const panelBox = Main.layoutManager.panelBox;
-        this.rim = new St.Widget({height: 1, reactive: false, visible: false,
-            style: 'background-color: white;'});
+        this.rim = new Clutter.Actor({reactive: false, visible: false,
+            content_gravity: Clutter.ContentGravity.RESIZE_FILL});
         panelBox.get_parent().insert_child_above(this.rim, panelBox);
         const placeRim = () => {
-            this.rim.set_position(panelBox.x + this.panel.x, panelBox.y + this.panel.y + this.panel.height - 1);
-            this.rim.width = this.panel.width;
+            const depth = Math.min(32, this.panel.height / 2, this.panel.width / 2);
+            this.rim.set_position(panelBox.x + this.panel.x, panelBox.y + this.panel.y + this.panel.height - depth);
+            this.rim.set_size(this.panel.width, depth);
         };
         this.signals.connect(this.panel, 'notify::allocation', placeRim);
         this.signals.connect(panelBox, 'notify::allocation', placeRim);
@@ -212,6 +231,8 @@ export default class PanelModule {
 
     _applyRim() {
         const opacity = Math.round(255 * (this.appearance?.rimAlpha ?? 0) * this.fade.value);
+        if (opacity > 0 && !this.rim.content)
+            this.rim.content = createRimTexture();
         this.rim.opacity = opacity;
         this.rim.visible = opacity > 0 && this.panel.mapped && !this.returnPending &&
             (!this.overviewActive || this.overviewOpening);

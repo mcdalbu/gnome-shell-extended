@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.7 — 2026-11-25
+
+- O realce opcional do Liquid na barra superior agora perde intensidade gradualmente da borda inferior para dentro do painel.
+
 ## 1.9.6 — 2026-11-18
 
 - Adiciona realce opcional na borda inferior do painel quando Liquid está ativo. A linha usa o controle de intensidade do Liquid e ocupa um pixel lógico dentro da barra.
