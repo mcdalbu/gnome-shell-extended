@@ -9,9 +9,7 @@ import time
 def run(evaluate, wait, check, screenshot, results, root, output, variant, display_env, log):
     test_panel_blur(evaluate, wait, check, screenshot, results, output, variant)
     test_system_dialogs(evaluate, wait, check, screenshot, results, output, variant)
-    if os.environ.get('GSE_TEST_FLICKER'):
-        test_panel_rendered_fade(evaluate, wait, results)
-    test_panel_fade(evaluate, wait, check, results)
+    test_panel_overview(evaluate, wait, check, results)
     # Color scheme changes must work without restarting the extension.
     evaluate("globalThis.interfaceSettings=Gio.Settings.new('org.gnome.desktop.interface');cfg.set_string('panel-style','theme');interfaceSettings.set_string('color-scheme','prefer-dark')")
     time.sleep(0.3)
@@ -184,54 +182,70 @@ def run_dock(evaluate, wait, check, screenshot, results, root, output, variant, 
         evaluate('scene.show()')
 
 
-def test_panel_fade(evaluate, wait, check, results):
-    evaluate("globalThis.savedPanelAlpha=cfg.get_double('panel-opacity');globalThis.savedPanelAuto=cfg.get_boolean('panel-auto-opacity');cfg.set_boolean('panel-auto-opacity',false);cfg.set_double('panel-opacity',0.6);Main.overview.show()")
-    wait("Main.overview.visible && !Main.overview.animationInProgress")
-    check('panel-overview-custom-style-suspended', "!Main.panel.get_style()?.includes('rgba(') && Main.panel.get_theme_node().get_background_color().alpha===0")
-    check('panel-overview-window-tracking-off', "ext._manager._slots.get('panel').instance.tracked===false")
-    check('panel-overview-blur-released', '!bindingFor(Main.panel).surface')
-    # Enabling while already in Overview must not flash the configured tint.
-    evaluate("cfg.set_boolean('panel-enabled',false);cfg.set_boolean('panel-enabled',true)")
-    wait("ext._manager._slots.get('panel')?.instance?.overviewActive")
-    check('panel-enable-in-overview-transparent', "Main.panel.get_theme_node().get_background_color().alpha===0")
-    evaluate("""globalThis.panelFadeFrames=[];globalThis.panelHiddenAt=0;
-        globalThis.panelHiddenProbe=Main.overview.connect('hidden',()=>panelHiddenAt=GLib.get_monotonic_time());
-        globalThis.panelPaintProbe=global.stage.connect('after-paint',()=>{
-            const panel=ext._manager._slots.get('panel')?.instance;if(!panel)return;
-            panelFadeFrames.push({time:panelHiddenAt?(GLib.get_monotonic_time()-panelHiddenAt)/1000:-1,
-                value:panel.fade?.value,returning:!!panel.returning,closing:!!panel.overviewClosing,overview:Main.overview.visible,pending:!!panel.returnPending,
-                dockValue:ext._manager._slots.get('docks')?.instance?.fade?.value,
-                dockAlpha:dockBg.get_theme_node().get_background_color().alpha*dockBg.get_paint_opacity()/255,
-                dockForeground:dock.opacity,
-                alpha:Main.panel.get_theme_node().get_background_color().alpha,
-                actor:Main.panel.opacity,button:Main.panel.statusArea.dateMenu.opacity});
-        });Main.overview.hide();""")
-    wait("!Main.overview.visible && ext._manager._slots.get('panel').instance.fade.value===1 && !ext._manager._slots.get('panel').instance.returning")
-    evaluate('global.stage.disconnect(panelPaintProbe);Main.overview.disconnect(panelHiddenProbe)')
-    frames=evaluate('panelFadeFrames')
-    results['panel-fade-frames']=frames
-    returning=[frame for frame in frames if frame['returning']]
-    assert any(153<frame['alpha']<255 for frame in returning), 'Return must reveal transparency from an opaque cover'
-    assert all(frame['actor']==255 and frame['button']==255 for frame in frames), 'Foreground must remain opaque'
-    assert any(0<frame['dockAlpha']<204 for frame in frames), 'Dock background must fade in'
-    assert all(frame['dockForeground']==255 for frame in frames), 'Dock foreground must remain opaque'
-    assert any(not f['overview'] and f['returning'] and f['value']<0.2 for f in frames), 'Panel reveal must begin after Overview closes'
-    assert all(frame['alpha']==0 for frame in frames if frame['closing']), 'Custom panel tint must stay suspended during Overview close'
-    completed=[frame for frame in frames if frame['time']>=0 and frame['value']==1]
-    assert completed and 200<=completed[0]['time']<=400, frames
-    results['panel-return-duration-ms']=completed[0]['time']
-    # Reopening during the return cancels it, without a late callback restoring tint.
-    evaluate('Main.overview.show()')
+def test_panel_overview(evaluate, wait, check, results):
+    keys = ['panel-opacity', 'panel-auto-opacity', 'panel-blur', 'panel-foreground-shadow']
+    evaluate(f"""globalThis.overviewPanelSaved = {keys!r}.map(key => [key, cfg.get_value(key)]);
+        globalThis.overviewPanel = () => ext._manager._slots.get('panel')?.instance;
+        globalThis.panelHasShadow = () => Main.panel.get_style_class_name()?.includes('gse-panel-shadow-') ?? false;
+        cfg.set_boolean('panel-auto-opacity', false);
+        cfg.set_double('panel-opacity', 0.6);
+        cfg.set_boolean('panel-blur', true);
+        cfg.set_boolean('panel-foreground-shadow', true);""")
+    wait('overviewPanel()?.binding.surface?.backend && panelHasShadow()')
+    evaluate("""globalThis.panelOverviewFrames = [];
+        globalThis.panelPaintProbe = global.stage.connect('after-paint', () => {
+            const panel = overviewPanel();
+            panelOverviewFrames.push({
+                overview: Main.overview.visible, target: Main.overview.visibleTarget,
+                tint: Main.panel.get_style()?.includes('background-color: rgba(') ?? false,
+                blur: !!(panel?.binding.surface || panel?.binding.loading), shadow: panelHasShadow(),
+                alpha: Main.panel.get_theme_node().get_background_color().alpha,
+                actor: Main.panel.opacity, button: Main.panel.statusArea.dateMenu.opacity,
+                dockAlpha: dockBg.get_theme_node().get_background_color().alpha * dockBg.get_paint_opacity() / 255,
+                dockForeground: dock.opacity,
+            });
+        }); Main.overview.show();""")
+    check('panel-overview-suspends-immediately', '!overviewPanel().appearance && !overviewPanel().binding.surface && !panelHasShadow()')
     wait('Main.overview.visible && !Main.overview.animationInProgress')
+    check('panel-overview-window-tracking-off', 'overviewPanel().tracked === false')
+    evaluate("cfg.set_boolean('panel-enabled', false)")
+    wait('!overviewPanel()')
+    evaluate("cfg.set_double('panel-opacity', 0.35); cfg.set_boolean('panel-enabled', true)")
+    wait('overviewPanel()?.tracked === false')
+    check('panel-enable-in-overview-stays-native', '!overviewPanel().appearance && !overviewPanel().binding.surface && !panelHasShadow()')
+
+    evaluate('Main.overview.hide(); Main.overview.show()')
+    wait('Main.overview.visible && Main.overview.visibleTarget && !Main.overview.animationInProgress')
+    check('panel-overview-reopen-stays-native', '!overviewPanel().appearance && !overviewPanel().binding.surface && !panelHasShadow()')
     evaluate('Main.overview.hide()')
-    wait("ext._manager._slots.get('panel').instance.returning")
-    evaluate('Main.overview.show()')
-    wait('Main.overview.visible && !Main.overview.animationInProgress')
-    time.sleep(0.3)
-    check('panel-interrupted-return-remains-transparent', "Main.panel.get_theme_node().get_background_color().alpha===0 && ext._manager._slots.get('panel').instance.fade.value===0")
-    evaluate('Main.overview.hide()')
-    wait("!Main.overview.visible && ext._manager._slots.get('panel').instance.fade.value===1")
-    evaluate("cfg.set_double('panel-opacity',savedPanelAlpha);cfg.set_boolean('panel-auto-opacity',savedPanelAuto)")
+    wait('!Main.overview.visible && overviewPanel()?.binding.surface?.backend && panelHasShadow()')
+    evaluate('global.stage.disconnect(panelPaintProbe)')
+    frames = evaluate('panelOverviewFrames')
+    results['panel-overview-frames'] = frames
+    visible = [frame for frame in frames if frame['overview']]
+    assert any(frame['target'] for frame in visible) and any(not frame['target'] for frame in visible), frames
+    assert all(not (frame['tint'] or frame['blur'] or frame['shadow']) for frame in visible), frames
+    desktop = [frame for frame in frames if not frame['overview'] and frame['tint']]
+    assert desktop and all(abs(frame['alpha'] - 89) <= 1 for frame in desktop), frames
+    assert all(frame['actor'] == 255 and frame['button'] == 255 for frame in frames), frames
+    assert any(0 < frame['dockAlpha'] < 204 for frame in frames), 'Dock background must fade in'
+    assert all(frame['dockForeground'] == 255 for frame in frames), 'Dock foreground must remain opaque'
+
+    evaluate("""globalThis.panelAnimationSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
+        globalThis.panelAnimationsSaved = panelAnimationSettings.get_user_value('enable-animations');
+        panelAnimationSettings.set_boolean('enable-animations', false);""")
+    wait('!St.Settings.get().enable_animations')
+    try:
+        evaluate('Main.overview.show()')
+        wait('Main.overview.visible && !Main.overview.animationInProgress')
+        check('panel-overview-native-with-animations-disabled', '!overviewPanel().appearance && !overviewPanel().binding.surface')
+        evaluate('Main.overview.hide()')
+        wait('!Main.overview.visible && overviewPanel()?.binding.surface?.backend')
+        check('panel-restores-with-animations-disabled', 'Math.abs(Main.panel.get_theme_node().get_background_color().alpha - 89) <= 1')
+    finally:
+        evaluate("""if (panelAnimationsSaved) panelAnimationSettings.set_value('enable-animations', panelAnimationsSaved);
+            else panelAnimationSettings.reset('enable-animations');
+            for (const [key, value] of overviewPanelSaved) cfg.set_value(key, value);""")
 
 
 def test_menu_close(evaluate, wait, check, results):
@@ -356,42 +370,6 @@ def test_dock_bottom(evaluate, wait, screenshot, results, output, variant):
         assert all(blurred[band]<sharp[band]*0.85 for band in sharp), results[name+'-contrast']
         assert abs(blurred['bottom']/sharp['bottom']-blurred['top']/sharp['top'])<0.05, results[name+'-contrast']
     evaluate("scene.hide();cfg.set_string('blur-backend',dockBottomSaved[0]);cfg.set_int('blur-radius',dockBottomSaved[1]);cfg.set_double('blur-brightness',dockBottomSaved[2]);cfg.set_double('dock-opacity',dockBottomSaved[3])")
-
-
-def test_panel_rendered_fade(evaluate, wait, results):
-    # Keep the real Overview backdrop. Covering it with a test actor would hide
-    # the very input discontinuity that happens when Overview actually closes.
-    evaluate("globalThis.fadePixelSaved=[cfg.get_boolean('panel-auto-opacity'),cfg.get_double('panel-opacity'),cfg.get_string('blur-backend'),cfg.get_double('blur-brightness')];cfg.set_boolean('panel-auto-opacity',false);cfg.set_double('panel-opacity',0.67);cfg.set_string('blur-backend','auto');cfg.set_double('blur-brightness',1);for(const child of scene.get_children()){child.y=0;child.height=1000};Main.overview.show()")
-    wait('Main.overview.visible && !Main.overview.animationInProgress')
-    evaluate("""globalThis.panelPixelFrames=[];globalThis.panelPixelHiddenAt=0;
-        globalThis.panelPixelHiddenProbe=Main.overview.connect('hidden',()=>panelPixelHiddenAt=GLib.get_monotonic_time());
-        globalThis.panelPixelProbe=global.stage.connect('after-paint',(_stage,view)=>{
-            const monitor=Main.layoutManager.primaryMonitor;if(view.layout.x!==monitor.x || view.layout.y!==monitor.y)return;
-            const scale=view.get_scale();const bytes=frameProbe.read(view.get_framebuffer(),Math.round(100*scale),Math.round(5*scale),Math.round(300*scale),Math.round(3*scale)).get_data();
-            const mean=[0,0,0];for(let i=0;i<bytes.length;i+=4)for(let c=0;c<3;c++)mean[c]+=bytes[i+c]/(bytes.length/4);
-            let variance=0;for(let i=0;i<bytes.length;i+=4)for(let c=0;c<3;c++)variance+=(bytes[i+c]-mean[c])**2/(bytes.length/4);
-            const panel=ext._manager._slots.get('panel').instance;
-            panelPixelFrames.push({value:panel.fade.value,detail:Math.sqrt(variance),mean,
-                radius:panel.binding.surface?._state.effect?.radius,
-                alpha:Main.panel.get_theme_node().get_background_color().alpha,
-                overview:Main.overview.visible,returning:!!panel.returning,pending:!!panel.returnPending,
-                time:panelPixelHiddenAt?(GLib.get_monotonic_time()-panelPixelHiddenAt)/1000:-1});
-        });global.stage.queue_redraw();""")
-    wait('panelPixelFrames.length>0')
-    evaluate('Main.overview.hide()')
-    wait("!Main.overview.visible && ext._manager._slots.get('panel').instance.fade.value===1 && !ext._manager._slots.get('panel').instance.returning && !ext._manager._slots.get('panel').instance.returnPending")
-    evaluate('global.stage.disconnect(panelPixelProbe);Main.overview.disconnect(panelPixelHiddenProbe)')
-    frames=evaluate('panelPixelFrames')
-    results['panel-natural-reveal-frames']=frames
-    closed=[f for f in frames if not f['overview']]
-    assert closed and closed[0]['value']<0.1 and closed[0]['alpha']>=250, frames
-    visible=[f for f in frames if f['overview']]
-    assert max(abs(a-b) for a,b in zip(closed[0]['mean'],visible[-1]['mean']))<4, frames
-    assert any(0.2<f['value']<0.8 and 171<f['alpha']<250 for f in closed), frames
-    radii = {f['radius'] for f in closed if 0.1 < f['value'] <= 1 and 'radius' in f}
-    assert len(radii) == 1 and min(radii) > 0, radii
-    assert 200<=closed[-1]['time']<=400 and abs(closed[-1]['alpha']-171)<=2, frames
-    evaluate("cfg.set_boolean('panel-auto-opacity',fadePixelSaved[0]);cfg.set_double('panel-opacity',fadePixelSaved[1]);cfg.set_string('blur-backend',fadePixelSaved[2]);cfg.set_double('blur-brightness',fadePixelSaved[3]);for(const child of scene.get_children()){child.y=32;child.height=968}")
 
 
 def test_window_reveal(evaluate, wait, check, results, root, display_env, log):

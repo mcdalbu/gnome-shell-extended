@@ -145,7 +145,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         const panel = page('panel', 'Painel', 'view-more-symbolic');
         toggle(group(panel, 'Barra superior'), 'panel-enabled', 'Ativar painel adaptativo');
         const panelOptions = dependent(panel, 'panel-enabled', 'Aparência e comportamento',
-            'No Overview, o estilo personalizado é suspenso. Após o Overview fechar, o fundo passa da cor opaca do Overview à transparência configurada em 250 ms; textos e ícones permanecem opacos.');
+            'A barra segue as animações do GNOME no Overview. A transparência, o desfoque e as sombras configurados voltam após o fechamento.');
         choice(panelOptions, 'panel-style', 'Cor do fundo', ['theme', 'light', 'dark'], ['Do tema', 'Clara', 'Escura']);
         toggle(panelOptions, 'panel-foreground-shadow', 'Sombra de destaque em textos e ícones',
             'Melhora a leitura com o fundo transparente, com ou sem desfoque.');

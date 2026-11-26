@@ -122,7 +122,7 @@ def run(evaluate, wait, check, screenshot, results, pid):
     wait('!Main.overview.animationInProgress')
     check('static-panel-released-in-overview', '!spSurface()')
     evaluate('Main.overview.hide()')
-    wait("!Main.overview.visible && spSurface()?.constructor.name==='WallpaperSurface' && spModule.fade.value===1")
+    wait("!Main.overview.visible && spSurface()?.constructor.name==='WallpaperSurface' && spSurface().manager?.backgroundActor")
     time.sleep(.3)
     pixels('static-panel-after-overview')
     evaluate("cfg.set_double('panel-opacity',1)")

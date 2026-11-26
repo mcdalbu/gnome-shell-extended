@@ -223,7 +223,7 @@ def wallpaper(evaluate, wait, check, screenshot, results, root):
         check('liquid-overview-model', "ext._manager._slots.get('blur').instance.backgrounds.effects.length>0 && ext._manager._slots.get('blur').instance.backgrounds.effects.every(([,e])=>e.glassStyle==='liquid' && e.get_texture())")
         screenshot('liquid-overview')
         evaluate('Main.overview.hide()')
-        wait("!Main.overview.visible && ext._manager._slots.get('panel').instance.fade.value===1 && liquidPanel()?.finish?.glassStyle==='liquid'")
+        wait("!Main.overview.visible && liquidPanel()?.finish?.glassStyle==='liquid'")
         evaluate("""cfg.set_boolean('blur-lock-screen',true);
             globalThis.liquidLockFixture=new St.Widget();globalThis.liquidLockGroup=new St.Widget();
             globalThis.liquidLock=new St.Widget({width:300,height:200});

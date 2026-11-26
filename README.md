@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **2.1**.
+preferências GTK4/Libadwaita. Versão **2.2**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -19,6 +19,10 @@ Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md
 Por padrão, blur do calendário/configurações rápidas e painel adaptativo ficam
 ativos. Outros elementos podem ser habilitados individualmente. As integrações
 com aplicativos, docks e sombras ficam desligadas por padrão.
+
+**Barra superior:** o GNOME controla a aparência da barra ao abrir, exibir e
+fechar o Overview. A transparência, o desfoque e as sombras configurados no
+painel são aplicados após o fim da transição de saída.
 
 **Blur de janelas:** a aba Aplicativos inclui `Efeitos nos fundos transparentes`.
 Ele é aplicado atrás das janelas dos aplicativos selecionados e fica visível

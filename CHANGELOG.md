@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2 — 2026-11-26
+
+- Usa as animações nativas do GNOME para a barra superior durante a entrada e a saída do Overview. A transparência, o desfoque e as sombras configurados voltam após o fim da transição de saída.
+
 ## 2.1 — 2026-11-25
 
 - Adiciona **Sombra de destaque em textos e ícones** nas preferências do painel. A opção acompanha o estilo claro ou escuro da barra e funciona com o fundo transparente, com ou sem desfoque.
