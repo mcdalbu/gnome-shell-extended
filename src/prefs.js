@@ -29,12 +29,26 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             parent.add(row);
             return row;
         };
-        const number = (parent, key, title, lower, upper, step = 1, subtitle = '') => {
-            const row = new Adw.SpinRow({name: `setting-${key}`, title, subtitle,
+        const slider = (parent, key, title, lower, upper, step = 1, subtitle = '', {format, mark} = {}) => {
+            const row = new Adw.ActionRow({title, subtitle});
+            const scale = new Gtk.Scale({name: `setting-${key}`, orientation: Gtk.Orientation.HORIZONTAL,
+                draw_value: true, width_request: 180, valign: Gtk.Align.CENTER,
                 digits: step < 1 ? 2 : 0,
                 adjustment: new Gtk.Adjustment({lower, upper, step_increment: step, page_increment: step * 10}),
             });
-            settings.bind(key, row, 'value', Gio.SettingsBindFlags.DEFAULT);
+            scale.connect('change-value', (_scale, _scroll, value) => {
+                const snapped = lower + Math.round((value - lower) / step) * step;
+                scale.set_value(Number(snapped.toFixed(scale.digits)));
+                return true;
+            });
+            if (format)
+                scale.set_format_value_func(format);
+            if (mark !== undefined)
+                scale.add_mark(mark, Gtk.PositionType.BOTTOM, null);
+            scale.update_property([Gtk.AccessibleProperty.LABEL], [title]);
+            settings.bind(key, scale.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
+            settings.bind_writable(key, scale, 'sensitive', false);
+            row.add_suffix(scale);
             parent.add(row);
             return row;
         };
@@ -79,35 +93,27 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             choice(blurOptions, 'blur-method', 'Método de blur', ['box', 'fast-gaussian', 'kawase'],
                 ['Box blur', 'Fast Gaussian Blur', 'Kawase (leve)'],
                 'Cada iteração do Kawase usa uma passada de quatro amostras. Prioriza menor custo do filtro, com aparência aproximada.'),
-            number(blurOptions, 'blur-radius', 'Raio do desfoque (pixels lógicos)', 0, 100),
+            slider(blurOptions, 'blur-radius', 'Raio do desfoque (pixels lógicos)', 0, 100),
         ];
         const samplesControl = choice(blurOptions, 'blur-samples', 'Samples do Fast Gaussian',
             ['13', '9', '5'], ['13 taps', '9 taps', '5 taps'],
             '13, 9 e 5 taps usam 7, 5 e 3 leituras de textura por direção.');
-        const iterationsControl = number(blurOptions, 'blur-iterations', 'Iterações do Fast Gaussian', 1, 8, 1,
+        const iterationsControl = slider(blurOptions, 'blur-iterations', 'Iterações do Fast Gaussian', 1, 8, 1,
             'Passos progressivamente menores suavizam o desfoque. Cada iteração usa duas passadas na GPU; o padrão 4 usa oito passadas.');
-        const kawaseIterationsControl = number(blurOptions, 'blur-kawase-iterations', 'Iterações do Kawase', 1, 8, 1,
+        const kawaseIterationsControl = slider(blurOptions, 'blur-kawase-iterations', 'Iterações do Kawase', 1, 8, 1,
             'Cada iteração usa uma passada de quatro amostras na GPU. Menos iterações reduzem o trabalho do filtro; o padrão é 3.');
         const glassOptions = group(blur, 'Vidro', 'A distorção pode ser usada sozinha ou combinada com o blur. Não se aplica à barra superior.');
         toggle(glassOptions, 'refraction-enabled', 'Ativar distorção do vidro');
         const glassStyleControl = choice(glassOptions, 'refraction-style', 'Modelo do vidro',
             ['contour', 'liquid'], ['Contorno', 'Liquid'],
             'Liquid refrata o fundo nas bordas e nos cantos arredondados, com um brilho sutil. Textos e ícones permanecem nítidos.');
-        const strengthControl = number(glassOptions, 'refraction-strength', 'Intensidade da distorção', 0, 24, 0.5);
-        const highlightControl = new Adw.ActionRow({
-            title: 'Realce do Liquid', subtitle: '100% é o brilho original. 0% remove o realce.'});
-        const highlightScale = new Gtk.Scale({name: 'setting-refraction-highlight', orientation: Gtk.Orientation.HORIZONTAL,
-            draw_value: true, digits: 0, width_request: 180, valign: Gtk.Align.CENTER,
-            adjustment: new Gtk.Adjustment({lower: 0, upper: 200, step_increment: 1, page_increment: 10})});
-        highlightScale.set_format_value_func((_scale, value) => `${Math.round(value)}%`);
-        highlightScale.add_mark(100, Gtk.PositionType.BOTTOM, null);
-        highlightScale.update_property([Gtk.AccessibleProperty.LABEL], ['Realce do Liquid']);
-        settings.bind('refraction-highlight', highlightScale.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
-        highlightControl.add_suffix(highlightScale);
-        glassOptions.add(highlightControl);
+        const strengthControl = slider(glassOptions, 'refraction-strength', 'Intensidade da distorção', 0, 24, 0.5);
+        const highlightControl = slider(glassOptions, 'refraction-highlight', 'Realce do Liquid', 0, 200, 1,
+            '100% é o brilho original. 0% remove o realce.',
+            {format: (_scale, value) => `${Math.round(value)}%`, mark: 100});
         const appearance = group(blur, 'Aparência');
-        number(appearance, 'blur-brightness', 'Brilho do fundo', 0, 1, 0.05);
-        number(appearance, 'surface-opacity', 'Opacidade do fundo', 0, 1, 0.05);
+        slider(appearance, 'blur-brightness', 'Brilho do fundo', 0, 1, 0.05);
+        slider(appearance, 'surface-opacity', 'Opacidade do fundo', 0, 1, 0.05);
         toggle(appearance, 'frosted-glass-enabled', 'Textura fosca',
             'Textura estática compartilhada, sem capturar ou desfocar o fundo.');
         const syncEffects = () => {
@@ -157,10 +163,10 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         syncStaticPanel();
         toggle(panelOptions, 'panel-remove-gap', 'Remover lacuna entre a barra e janelas maximizadas', 'Posiciona o topo da janela 1 px sob a borda inferior da barra para fechar a junção, sem aumentar o painel.');
         toggle(panelOptions, 'panel-auto-opacity', 'Opacidade automática', 'Suaviza as mudanças de opacidade conforme as janelas no monitor da barra.');
-        number(panelOptions, 'panel-opacity', 'Opacidade normal', 0, 1, 0.05);
+        slider(panelOptions, 'panel-opacity', 'Opacidade normal', 0, 1, 0.05);
         for (const [key, title] of [['panel-maximized-opacity', 'Com janela maximizada'],
             ['panel-fullscreen-opacity', 'Com janela em tela cheia']]) {
-            const row = number(panelOptions, key, title, 0, 1, 0.05);
+            const row = slider(panelOptions, key, title, 0, 1, 0.05);
             settings.bind('panel-auto-opacity', row, 'visible', Gio.SettingsBindFlags.GET);
         }
 
@@ -169,7 +175,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             'docks-enabled', 'Ativar integração');
         const dockOptions = dependent(docks, 'docks-enabled', 'Fundo do dock');
         toggle(dockOptions, 'dock-blur', 'Aplicar efeitos de fundo');
-        number(dockOptions, 'dock-opacity', 'Opacidade do fundo', 0, 1, 0.05);
+        slider(dockOptions, 'dock-opacity', 'Opacidade do fundo', 0, 1, 0.05);
         toggle(dockOptions, 'dock-invisible-overview', 'Fundo invisível no Overview', 'Mantém ícones e interação disponíveis. Fundo, contorno e sombra usam fade de 250 ms ao entrar e sair.');
 
         const shadows = page('icons', 'Ícones', 'starred-symbolic');
@@ -178,10 +184,10 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         toggle(shadowOptions, 'shadow-app-grid', 'Grade e pastas');
         toggle(shadowOptions, 'shadow-dock', 'Dock');
         toggle(shadowOptions, 'shadow-alt-tab', 'Alt+Tab');
-        number(shadowOptions, 'shadow-opacity', 'Opacidade da sombra', 0, 1, 0.05);
-        number(shadowOptions, 'shadow-radius', 'Desfoque (px)', 0, 64);
-        number(shadowOptions, 'shadow-offset-x', 'Deslocamento horizontal (px)', -64, 64);
-        number(shadowOptions, 'shadow-offset-y', 'Deslocamento vertical (px)', -64, 64);
+        slider(shadowOptions, 'shadow-opacity', 'Opacidade da sombra', 0, 1, 0.05);
+        slider(shadowOptions, 'shadow-radius', 'Desfoque (px)', 0, 64);
+        slider(shadowOptions, 'shadow-offset-x', 'Deslocamento horizontal (px)', -64, 64);
+        slider(shadowOptions, 'shadow-offset-y', 'Deslocamento vertical (px)', -64, 64);
 
         const apps = page('windows', 'Aplicativos', 'application-x-executable-symbolic');
         toggle(group(apps, 'Integração opcional', 'As opções GTK escrevem um bloco identificado em ~/.config/gtk-4.0/gtk.css. Feche e reabra os aplicativos para aplicar ou restaurar. O blur aparece somente nas áreas que o aplicativo desenha com transparência.'),
@@ -189,7 +195,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         const appOptions = dependent(apps, 'opacity-enabled', 'Fundos dos aplicativos',
             'A disponibilidade depende da versão e dos estilos do aplicativo. Aplicativos Flatpak podem não ler o CSS do host.');
         toggle(appOptions, 'windows-blur', 'Efeitos nos fundos transparentes', 'Aplica às integrações selecionadas com fade-in de 250 ms ao mostrar/restaurar ou trazer a janela para a frente. Preserva os pixels opacos do aplicativo.');
-        number(appOptions, 'gtk-background-opacity', 'Opacidade do fundo', 0, 1, 0.05);
+        slider(appOptions, 'gtk-background-opacity', 'Opacidade do fundo', 0, 1, 0.05);
         toggle(appOptions, 'opacity-gtk-files-sidebar', 'Barra lateral do Arquivos', 'Para versões com sidebar-pane/content-pane.');
         toggle(appOptions, 'opacity-gtk-menus', 'Menus GTK4', 'Aplica o fundo dos popovers de menu em aplicativos que leem o CSS do usuário.');
         toggle(appOptions, 'opacity-ptyxis', 'Terminal Ptyxis', 'Usa a preferência nativa dos perfis; preserva a opacidade dos caracteres e restaura os valores anteriores ao desativar.');
@@ -197,7 +203,7 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
             'Adiciona uma classe CSS via overlay do recurso CcWindow e lançador D-Bus reversível do usuário. Requer gresource e reinício do aplicativo.');
 
         const maintenance = group(blur, `${this.metadata.name} ${this.metadata['version-name'] ?? this.metadata.version}`, 'GNOME 45–51 são alvos de compatibilidade. Consulte README e VALIDATION para os ambientes efetivamente testados.');
-        number(maintenance, 'resize-debounce-ms', 'Agrupar eventos de layout (ms)', 0, 1000, 10,
+        slider(maintenance, 'resize-debounce-ms', 'Agrupar eventos de layout (ms)', 0, 1000, 10,
             'Aplicado na próxima ativação do módulo.');
         toggle(maintenance, 'debug-logging', 'Logs de depuração', 'Aplicado na próxima ativação da extensão.');
         const reset = new Adw.ActionRow({title: 'Restaurar configurações da extensão'});

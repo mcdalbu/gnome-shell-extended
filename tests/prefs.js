@@ -51,16 +51,17 @@ for (const key of settings.settings_schema.list_keys()) {
         settings.set_boolean(key, !control.active);
         assert(control.active === settings.get_boolean(key), `Boolean read ${key}`);
     } else if (type === 'd' || type === 'i') {
-        const slider = control instanceof Gtk.Scale;
-        const valueTarget = slider ? control.adjustment : control;
-        valueTarget.value = slider ? 150 : control.adjustment.upper / 2;
-        assert(settings.get_value(key).deep_unpack() === valueTarget.value, `Numeric write ${key}`);
-        const lower = control.adjustment.lower;
+        assert(control instanceof Gtk.Scale && control.draw_value, `Numeric slider ${key}`);
+        const {lower, step_increment: step} = control.adjustment;
+        control.emit('change-value', Gtk.ScrollType.JUMP, lower + 2.25 * step);
+        const expected = Number((lower + 2 * step).toFixed(control.digits));
+        assert(control.get_value() === expected, `Slider step ${key}`);
+        assert(settings.get_value(key).deep_unpack() === expected, `Numeric write ${key}`);
         if (type === 'd')
             settings.set_double(key, lower);
         else
             settings.set_int(key, lower);
-        assert(valueTarget.value === lower, `Numeric read ${key}`);
+        assert(control.get_value() === lower, `Numeric read ${key}`);
     } else {
         control.selected = 1;
         const changed = settings.get_string(key);
@@ -71,7 +72,8 @@ for (const key of settings.settings_schema.list_keys()) {
 }
 assert(controls.has('opacity-gtk-settings-sidebar'), 'Settings integration control');
 settings.set_boolean('panel-auto-opacity', false);
-assert(!controls.get('panel-maximized-opacity').visible && !controls.get('panel-fullscreen-opacity').visible,
+assert(!controls.get('panel-maximized-opacity').get_ancestor(Adw.ActionRow).visible &&
+    !controls.get('panel-fullscreen-opacity').get_ancestor(Adw.ActionRow).visible,
     'Panel window-specific opacities are hidden in manual mode');
 settings.reset('panel-auto-opacity');
 for (const enabled of [false, true]) {
@@ -84,8 +86,8 @@ for (const blur of [false, true]) {
         settings.set_boolean('blur-filter-enabled', blur);
         settings.set_boolean('refraction-enabled', distortion);
         assert(controls.get('blur-method').sensitive === blur, 'Blur method follows blur toggle');
-        assert(controls.get('blur-radius').sensitive === blur, 'Blur radius follows blur toggle');
-        assert(controls.get('refraction-strength').sensitive === distortion, 'Distortion strength independent');
+        assert(controls.get('blur-radius').is_sensitive() === blur, 'Blur radius follows blur toggle');
+        assert(controls.get('refraction-strength').is_sensitive() === distortion, 'Distortion strength independent');
         assert(controls.get('refraction-style').sensitive === distortion, 'Glass model follows distortion toggle');
         assert(controls.get('refraction-enabled').sensitive, 'Distortion toggle always available');
         assert(controls.get('blur-filter-enabled').sensitive, 'Blur toggle always available');
@@ -105,8 +107,8 @@ assert(!highlight.is_sensitive(), 'Contour does not use the Liquid slider');
 for (const enabled of [false,true]) for (const method of ['box','fast-gaussian','kawase']) {
     settings.set_boolean('blur-filter-enabled',enabled);settings.set_string('blur-method',method);
     assert(controls.get('blur-samples').sensitive===(enabled && method==='fast-gaussian'), 'Sample selector sensitivity');
-    assert(controls.get('blur-iterations').sensitive===(enabled && method==='fast-gaussian'), 'Iteration control sensitivity');
-    assert(controls.get('blur-kawase-iterations').sensitive===(enabled && method==='kawase'), 'Kawase iteration control sensitivity');
+    assert(controls.get('blur-iterations').is_sensitive()===(enabled && method==='fast-gaussian'), 'Iteration control sensitivity');
+    assert(controls.get('blur-kawase-iterations').is_sensitive()===(enabled && method==='kawase'), 'Kawase iteration control sensitivity');
 }
 for (const [index,value] of ['13','9','5'].entries()) {
     controls.get('blur-samples').selected=index;

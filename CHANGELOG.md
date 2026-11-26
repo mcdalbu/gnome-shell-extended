@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.1 — 2026-11-26
+
+- Substitui os botões de + e − das preferências numéricas por sliders com o valor atual visível. Os limites e incrementos de cada ajuste são preservados.
+
 ## 2.2 — 2026-11-26
 
 - Usa as animações nativas do GNOME para a barra superior durante a entrada e a saída do Overview. A transparência, o desfoque e as sombras configurados voltam após o fim da transição de saída.

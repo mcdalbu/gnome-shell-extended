@@ -12,8 +12,8 @@
     "50",
     "51"
   ],
-  "version": 45,
-  "version-name": "2.2",
+  "version": 46,
+  "version-name": "2.2.1",
   "settings-schema": "org.gnome.shell.extensions.gnome-shell-extended",
   "session-modes": [
     "user",
