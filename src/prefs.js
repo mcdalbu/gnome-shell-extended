@@ -147,6 +147,8 @@ export default class GnomeShellExtendedPreferences extends ExtensionPreferences 
         const panelOptions = dependent(panel, 'panel-enabled', 'Aparência e comportamento',
             'No Overview, o estilo personalizado é suspenso. Após o Overview fechar, o fundo passa da cor opaca do Overview à transparência configurada em 250 ms; textos e ícones permanecem opacos.');
         choice(panelOptions, 'panel-style', 'Cor do fundo', ['theme', 'light', 'dark'], ['Do tema', 'Clara', 'Escura']);
+        toggle(panelOptions, 'panel-foreground-shadow', 'Sombra de destaque em textos e ícones',
+            'Melhora a leitura com o fundo transparente, com ou sem desfoque.');
         toggle(panelOptions, 'panel-blur', 'Efeitos no fundo da barra', 'Usa os parâmetros da aba Blur. Suspenso no Overview e quando o fundo está opaco.');
         const staticPanelControl = toggle(panelOptions, 'panel-static-blur', 'Blur estático do papel de parede',
             'Usa somente o papel de parede e guarda o efeito em cache. Janelas atrás da barra não atualizam o blur.');

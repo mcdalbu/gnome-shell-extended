@@ -243,6 +243,27 @@ def test():
             evaluate("cfg.set_string('blur-render-area','elements')")
         time.sleep(0.8)
         check('modules-active', 'ext._manager._slots.size === 2')
+        evaluate('''globalThis.panelShadowClass = () =>
+                Main.panel.get_style_class_name()?.split(' ').find(name => name.startsWith('gse-panel-shadow-'));
+            globalThis.panelSurface = () => ext._manager._slots.get('panel')?.instance?.binding?.surface;
+            globalThis.findPanelActor = (actor, type) => actor instanceof type ? actor :
+                actor.get_children().map(child => findPanelActor(child, type)).find(Boolean);
+            cfg.set_boolean('panel-auto-opacity', false);
+            cfg.set_double('panel-opacity', 0);
+            cfg.set_boolean('panel-blur', false);
+            cfg.set_string('panel-style', 'dark');
+            cfg.set_boolean('panel-foreground-shadow', true);''')
+        wait("panelShadowClass() === 'gse-panel-shadow-dark' && !panelSurface() && Main.panel.get_theme_node().get_background_color().alpha === 0")
+        check('transparent-panel-text-shadow', 'Boolean(findPanelActor(Main.panel._centerBox, St.Label).get_theme_node().get_text_shadow())')
+        check('transparent-panel-icon-shadow', "Boolean(findPanelActor(Main.panel._rightBox, St.Icon).get_theme_node().get_shadow('icon-shadow'))")
+        evaluate("cfg.set_boolean('panel-blur', true);cfg.set_string('panel-style', 'light')")
+        wait("panelShadowClass() === 'gse-panel-shadow-light' && panelSurface()?.backend")
+        check('transparent-panel-blur-and-shadow', 'Main.panel.get_theme_node().get_background_color().alpha === 0 && Boolean(findPanelActor(Main.panel._centerBox, St.Label).get_theme_node().get_text_shadow())')
+        evaluate("cfg.set_boolean('panel-enabled', false)")
+        wait('!panelShadowClass() && !ext._manager._slots.has("panel")')
+        for key in ['panel-foreground-shadow', 'panel-style', 'panel-opacity', 'panel-auto-opacity', 'panel-blur', 'panel-enabled']:
+            evaluate(f'cfg.reset({json.dumps(key)})')
+        wait('ext._manager._slots.get("panel")?.instance')
         # Deliberately striped scene makes blur visible in the screenshots.
         evaluate('''globalThis.scene=new St.Widget({name:'gse-test-scene',width:1440,height:1000,reactive:false});
             for(let x=0;x<1440;x+=40) scene.add_child(new St.Widget({x,y:32,width:40,height:968,

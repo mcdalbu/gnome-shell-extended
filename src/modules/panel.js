@@ -18,6 +18,7 @@ export default class PanelModule {
         this.tracking = new Signals();
         this.windows = new Map();
         this.foregrounds = new Map();
+        this.foregroundShadow = null;
         this.scope = new ResourceScope(error => logger.error('Panel cleanup', error));
     }
 
@@ -81,8 +82,19 @@ export default class PanelModule {
     _restoreAppearance() {
         this.binding?.sync();
         this.style.restore();
+        this._setForegroundShadow();
         for (const style of this.foregrounds.values())
             style.restore();
+    }
+
+    _setForegroundShadow(styleClass = null) {
+        if (styleClass === this.foregroundShadow)
+            return;
+        if (this.foregroundShadow)
+            this.panel.remove_style_class_name(this.foregroundShadow);
+        this.foregroundShadow = styleClass;
+        if (styleClass)
+            this.panel.add_style_class_name(styleClass);
     }
 
     _suspendForOverview() {
@@ -187,6 +199,7 @@ export default class PanelModule {
         if (this.returnPending && !this.openingAppearance) {
             this.renderedAppearance = null;
             this.style.set('background-color: transparent; background-image: none; transition-duration: 0ms;');
+            this._setForegroundShadow();
             for (const style of this.foregrounds.values())
                 style.restore();
             return;
@@ -326,10 +339,12 @@ export default class PanelModule {
                     !light && this.color.every(c => c > 180) ? [25, 25, 28] : this.color;
             const alpha = this.settings.get_double(key);
             const foreground = light ? '#202024' : '#ffffff';
+            const shadow = this.settings.get_boolean('panel-foreground-shadow')
+                ? (light ? 'gse-panel-shadow-light' : 'gse-panel-shadow-dark') : null;
             // A window event often leaves the panel unchanged. Do not restart
             // style/layout/capture work in that case. Theme and child changes
             // still need a full pass, as do Overview transition boundaries.
-            const signature = JSON.stringify([color, foreground, alpha,
+            const signature = JSON.stringify([color, foreground, alpha, shadow,
                 this.settings.get_boolean('panel-blur'), this.settings.get_boolean('panel-static-blur'), this.settings.get_boolean('blur-enabled'),
                 this.settings.get_int('blur-radius'), this.settings.get_double('blur-brightness'),
                 this.settings.get_boolean('blur-filter-enabled'), this.settings.get_string('blur-method'), this.settings.get_string('blur-samples'),
@@ -343,6 +358,7 @@ export default class PanelModule {
                 return;
             this._appearanceSignature = signature;
             this._buttonsDirty = false;
+            this._setForegroundShadow(shadow);
             const initial = !this.appearance;
             const targetChanged = this.appearance?.alpha !== alpha || this.resumeTint;
             this.resumeTint = false;
@@ -402,9 +418,9 @@ export default class PanelModule {
         for (const signals of this.windows.values())
             signals.clear();
         this.windows.clear();
-        if (!this.panelDestroyed)
-            this.style?.restore();
         if (!this.panelDestroyed) {
+            this.style?.restore();
+            this._setForegroundShadow();
             for (const style of this.foregrounds.values())
                 style.restore();
         }

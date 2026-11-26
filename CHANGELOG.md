@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1 — 2026-11-25
+
+- Adiciona **Sombra de destaque em textos e ícones** nas preferências do painel. A opção acompanha o estilo claro ou escuro da barra e funciona com o fundo transparente, com ou sem desfoque.
+
 ## 2.0 — 2026-11-25
 
 - Reduz a região capturada pelo blur da barra superior quando ela está alinhada ao topo do monitor. Mantém a grade de amostragem das capturas de tela com escala diferente.

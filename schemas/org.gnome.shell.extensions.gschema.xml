@@ -310,6 +310,11 @@
       <summary>Static wallpaper blur for the top panel</summary>
       <description>Use only the wallpaper behind the panel and cache the filtered result. Windows are not captured. Wallpaper, monitor, geometry and effect changes update the cache.</description>
     </key>
+    <key name="panel-foreground-shadow" type="b">
+      <default>false</default>
+      <summary>Contrast shadow for top panel text and icons</summary>
+      <description>Highlight the panel foreground independently of background opacity and blur.</description>
+    </key>
     <key name="panel-auto-opacity" type="b">
       <default>true</default>
       <summary>Panel auto opacity</summary>

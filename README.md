@@ -2,7 +2,7 @@
 
 Extensão modular para GNOME Shell **45–51**, com blur e transparência por
 superfície, painel adaptativo, integração com docks, sombras de ícones e
-preferências GTK4/Libadwaita. Versão **2.0**.
+preferências GTK4/Libadwaita. Versão **2.1**.
 Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md`.
 
 ## Funcionalidades
@@ -10,11 +10,11 @@ Licença **GPL-3.0-only**; código reaproveitado identificado em `THIRD_PARTY.md
 | Módulo | Implementação |
 | --- | --- |
 | Blur | Calendário, configurações rápidas, menus, banners, diálogos, pastas, Alt+Tab, volume/brilho e ferramenta de captura; papel de parede no Overview e bloqueio |
-| Painel | Cor por tema/clara/escura e opacidade normal, com janelas maximizadas ou em tela cheia; considera workspace e monitor da barra |
+| Painel | Cor por tema/clara/escura, opacidade adaptativa e sombra opcional em textos e ícones para fundos transparentes com ou sem desfoque |
 | Docks | Dash to Dock/Ubuntu Dock: blur, opacidade do fundo e fundo invisível no Overview, preservando os ícones |
 | Sombras | Grade, pastas, dock e Alt+Tab; intensidade, raio e deslocamentos |
 | Aplicativos | Integração opcional por CSS para barras laterais do Nautilus/Configurações e menus GTK4; opacidade nativa dos perfis do Ptyxis |
-| Preferências | Seis abas, 57 controles, limites de valores e restauração de defaults |
+| Preferências | Seis abas, 59 controles, limites de valores e restauração de defaults |
 
 Por padrão, blur do calendário/configurações rápidas e painel adaptativo ficam
 ativos. Outros elementos podem ser habilitados individualmente. As integrações
